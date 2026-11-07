@@ -62,33 +62,10 @@
       showModal(L("talent.book"), h, [{t: L("modal.close"), fn: () => { }}], null, false, true);
     }
 
-    function openShop() {
-      const opts = SHOP_ITEMS.map(it => ({
-        t: TZ(it.n), sub: L("shop.price", it.price),
-        disabled: () => S.prop.经济 < it.price,
-        fn: () => {
-          if (S.prop.经济 < it.price) {say(L("shop.poor"), "bad"); return;}
-          modProp("经济", -it.price);
-          S.items[it.id] = (S.items[it.id] || 0) + 1;
-          say(L("shop.buy", TZ(it.n)), "good");
-          toast(`${L("shop.title")}: ${TZ(it.n)}`);
-          renderHUD();
-          setTimeout(openShop, 100);
-        }
-      }));
-      opts.push({t: L("shop.leave"), fn: () => {ensureActionPanel();}});
-      showModal(L("shop.title"), `<div>${L("shop.body")}<br><span style="color:var(--dim);font-size:.85rem">${L("shop.money", Math.round(S.prop.经济))}</span></div>`, opts, null, false, true, {kind: "free"});
-    }
-
-    function useItem(id) {
-      const it = SHOP_ITEMS.find(x => x.id === id);
-      if (!it || !S.items[id] || S.items[id] <= 0) return;
-      S.items[id]--;
-      it.eff(S);
-      say(L("item.used", TZ(it.n), TZ(it.desc)), "good");
-      renderHUD();
-      showModal(L("item.use"), `<div style="line-height:1.62">${L("item.effect", TZ(it.n))}<br>${TZ(it.desc)}</div>`, [{t: L("modal.ok"), fn: () => { }}], null, false, false, {kind: "free", img: it.img});
-    }
+    /* v1.4 D 批：openShop() / useItem() 已迁到 js/05i-data-stationery.js。
+     * 小卖部只卖文具，旧消耗品与「使用道具」流程一起删掉。
+     * 千万别在这里再定义一次 openShop —— 本文件在 05i 之后加载，
+     * 会把那边的新实现覆盖掉。 */
 
     const STAT_COLOR = {心态: "#ffb4d1", 经济: "#d9b3ff", 健康: "#7ee0c0", 效率: "#b388ff", 悟性: "#c9a7ff", 社交: "#ffb86b", 压力: "#ff7aa2", 亲情: "#ffd08a"};
 
@@ -104,7 +81,9 @@
      * ================================================================== */
 
     function renderStatPanel() {
-      const list = (typeof PROP_HUD !== "undefined") ? PROP_HUD : Object.keys(PROP_RANGE);
+      /* v1.4：游戏模式把八项属性全部摊开，其余两档仍是四项 */
+      const all = Object.keys(PROP_RANGE);
+      const list = all.filter(k => (typeof propVisible === "function") ? propVisible(k) : true);
       let h = "<div class='statgrid'>";
       for (const k of list) {
         const v = fixProp(k, S.prop[k]); S.prop[k] = v;
@@ -114,18 +93,22 @@
       return h;
     }
 
-    /* 单条属性：经济给数字，其余给档位 */
+    /* 单条属性：给数字还是给档位，由 propShowsNumber() 决定。
+     * 经济永远给数字；游戏模式全部给数字；其余给五档文字 + 刻度。 */
     function statRowHtml(k, v) {
       const name = propName(k);
+      const color = STAT_COLOR[k] || "var(--gold)";
 
-      // 经济：唯一显示数字的一项
-      if (k === "经济") {
-        const pct = clampNum(v / 30, 0, 100, 2);
+      if (propShowsNumber(k)) {
+        // 经济按 0~300 映射到条长；其余属性 0~150
+        const pct = (k === "经济")
+          ? clampNum(v / 300 * 100, 0, 100, 0)
+          : clampNum(v / 150 * 100, 0, 100, 0);
         return `<div class="stathead"><span>${name}</span><b class="num">${Math.round(v)}</b></div>
-          <div class="bar"><i style="width:${pct}%;background:${STAT_COLOR[k] || "var(--gold)"}"></i></div>`;
+          <div class="bar"><i style="width:${pct}%;background:${color}"></i></div>`;
       }
 
-      // 其余：档位文字 + 五格刻度
+      // 五档文字 + 五格刻度
       const lv = propLevel(v);
       const text = propLevelText(k, v);
       const tone = propPolarity(k) > 0 ? lv : (4 - lv);   // 压力反向配色
@@ -137,11 +120,36 @@
         <div class="segbar t${tone}">${segs}</div>`;
     }
 
+    /* ==================================================================
+     * v1.4 学科常驻面板（仅「游戏」真实度显示）
+     * ------------------------------------------------------------------
+     * 早期版本删掉过学科分数板块；游戏模式要求「所有数值可见」，
+     * 所以这里把当前各科【学力】摊开。真实 / 模拟模式仍只在考试里见分。
+     * ================================================================== */
+    function renderSubjMini() {
+      const box = document.getElementById("subjMini");
+      if (!box) return;
+      if (typeof realismMode !== "function" || realismMode() !== "game") {
+        box.classList.add("hidden"); box.innerHTML = ""; return;
+      }
+      const subs = (typeof subjectsOf === "function") ? subjectsOf(S.term) : [];
+      if (!subs.length) {box.classList.add("hidden"); return;}
+      box.classList.remove("hidden");
+      box.innerHTML = `<div class="tag-title">📊 学力 <span style="color:var(--dim);font-size:.72rem">游戏模式 · 数值可见</span></div>`
+        + `<div class="subjmini">` + subs.map(k => {
+          const v = clampNum(S.subj[k], 0, SUBJ_CAP);
+          const pct = clampNum(v / 400 * 100, 0, 100, 0);
+          return `<div class="sjrow"><span>${TZ(k)}</span><div class="bar"><i style="width:${pct}%;background:${STAT_COLOR[k] || "var(--blue)"}"></i></div><b>${Math.round(v)}</b></div>`;
+        }).join("") + `</div>`;
+    }
+
     function renderHUD() {
       if (!S) return;
       /* 四季主题：周推进了，季节配色跟着走（内部只在必要时改，不会每帧重算） */
       if (typeof refreshSeason === "function") refreshSeason(true);
       document.getElementById("hudGrade").textContent = `${S.name}(${genderName(S.gender)}) · ${gradeName()}`;
+      /* 体力条统一在下面「本周行动进度」那一格渲染，别在这里提前清空
+       * —— 那会把 actNow / actMax 两个 span 一起删掉，后面的渲染会报 null。 */
       /* 周数显示：
        *  · 平时 —— 全局连续周（S.week 从 0 起，显示成第 1~120 周）
        *  · 假期 —— 假期不计入周数，这里改成显示「❄️ 寒假 / 🌞 暑假」，
@@ -157,55 +165,66 @@
       }
       const termEl = document.getElementById("hudTerm");
       if (termEl) termEl.textContent = (typeof inVacation === "function" && inVacation()) ? (S.vac.name || "") : termName();
-      // 属性栏：只显示 PROP_HUD 的四项，且除经济外一律只给档位
-      document.getElementById("statPanel").innerHTML = renderStatPanel();
+      // 属性栏：按真实度决定显示几项、给数字还是给档位
+      setHudHtml("statPanel", renderStatPanel());
+      if (typeof renderSubjMini === "function") renderSubjMini();
+      /* 顶栏标一下当前真实度与难度，玩家随时知道自己在哪一档 */
+      const modePill = document.getElementById("modePill");
+      if (modePill && typeof realismMode === "function" && typeof diffKey === "function") {
+        const rm = (GAME_CONFIG.REALISM_MODES || []).find(x => x.id === realismMode());
+        const df = (GAME_CONFIG.DIFFICULTIES || []).find(x => x.id === diffKey());
+        modePill.textContent = `${rm ? rm.name : "真实"} · ${df ? df.name : "困难"}`;
+      }
       document.getElementById("talentCount").textContent = Talent.owned.length;
-      document.getElementById("talentPanel").innerHTML = Talent.owned.length ?
-        [...Talent.owned].sort((a, b) => TALENTS[b].lv - TALENTS[a].lv).map(t => `<span class="badge c${TALENTS[t].lv}" title="${TZ(TALENTS[t].desc)}" onclick="openTalentInfo('${t}')">${TZ(t)} Lv.${TALENTS[t].lv}${cureProgress(t)}</span>`).join("") : `<span style='color:var(--dim)'>${L("hud.noTalent")}</span>`;
-      const itemCount = Object.values(S.items).reduce((a, b) => a + b, 0);
-      document.getElementById("itemCount").textContent = itemCount;
-      document.getElementById("itemPanel").innerHTML = itemCount > 0 ?
-        Object.entries(S.items).filter(([k, v]) => v > 0).map(([k, v]) => {
-          const it = SHOP_ITEMS.find(x => x.id === k);
-          return it ? `<span class="badge" onclick="useItem('${k}')">${TZ(it.n)} ×${v}</span>` : "";
-        }).join("") : `<span style='color:var(--dim)'>${L("hud.noItem")}</span>`;
+      setHudHtml("talentPanel", Talent.owned.length ?
+        [...Talent.owned].sort((a, b) => TALENTS[b].lv - TALENTS[a].lv).map(t => `<span class="badge c${TALENTS[t].lv}" title="${TZ(TALENTS[t].desc)}" onclick="openTalentInfo('${t}')">${TZ(t)} Lv.${TALENTS[t].lv}${cureProgress(t)}</span>`).join("") : `<span style='color:var(--dim)'>${L("hud.noTalent")}</span>`);
+      /* v1.4 D 批：这一格改成「文具袋」摘要。点开看详细列表与耐久。 */
+      if (typeof bagEnsure === "function") bagEnsure();
+      const bagCount = (S.bag && Array.isArray(S.bag.items)) ? S.bag.items.length : 0;
+      const bagCap = (S.bag && num(S.bag.cap, 6)) || 6;
+      document.getElementById("itemCount").textContent = bagCount;
+      const bagScatter = !!(S.bag && S.bag.scattered);
+      setHudHtml("itemPanel",
+        `<span class="badge" style="cursor:pointer" onclick="openBag()">🎒 文具袋 ${bagCount}/${bagCap}</span>` +
+        (bagScatter ? `<span class="badge" style="color:var(--red)">⚠️ 散落</span>` : "") +
+        (bagCount ? (S.bag.items.slice(0, 3).map(it => `<span class="badge" title="${TZ((anyDef(it.def)||{}).desc||"")}">${it.icon||"🎒"} ${TZ(it.n)}</span>`).join("")) : `<span style='color:var(--dim)'>${L("hud.noItem")}</span>`));
       document.getElementById("lastExam").textContent = S.lastExamScore || "—";
       const r = S.zhongkao >= 0 ? S.zhongkao : (S.lastExamScore || 0);
       document.getElementById("rankNow").textContent = r ? L("hud.rankVal", Math.max(1, Math.round(clampNum(100 - r, 1, 100)))) : "—";
       // 静态标签（语言切换后要重刷）
       setText("talentLabel", L("hud.talent"));
       setText("talentHint", L("hud.talentHint"));
-      setText("itemLabel", L("hud.item"));
+      setText("itemLabel", "文具袋");
       setText("scoreLabel", L("hud.score"));
       setText("lastExamLabel", L("hud.lastExam"));
       setText("rankLabel", L("hud.rank"));
       setText("actLabel", L("hud.act"));
       setText("evLabel", L("hud.ev"));
-      setText("btnShop", L("hud.shop"));
+      setText("btnShop", "🏪 小卖铺");
       setText("btnTalentBook", L("hud.talentBook"));
       setText("btnAch", L("hud.ach"));
       setText("btnTheme", L("hud.theme"));
       setText("btnSave", L("hud.save"));
       setText("btnHome", L("hud.home"));
 
+      /* v1.4 E 批（需求 20）：顶部状态栏常驻关键资源，跟着 HUD 一起刷 */
+      if (typeof updateResPill === "function") updateResPill();
       // 氛围特效：压力红雾 / 心态灰暗 / 健康发虚 / 经济见底
       if (typeof updateMood === "function") updateMood();
       if (typeof moodWhisper === "function") moodWhisper();
 
-      // 本周行动进度
-      const aq = num(S.actQuota, 0), ac = clampNum(S.actCount, 0, aq || 0);
+      // 本周行动进度 → v1.4 体力池：这一格改画体力条（次数已无意义）
       const ap = document.getElementById("actPill");
       if (ap) {
-        ap.style.display = aq ? "" : "none";
-        document.getElementById("actNow").textContent = ac;
-        document.getElementById("actMax").textContent = aq;
+        ap.style.display = "";
+        if (typeof staminaPillHtml === "function") setHudHtml("actPill", staminaPillHtml());
       }
 
       // 本周事件进度
       const quota = Math.min(num(GAME_CONFIG.maxEventsPerWeek, 4), 8);
       const now = clampNum(S.evWeekTotal, 0, quota);
       const dots = document.getElementById("evDots");
-      if (dots) dots.innerHTML = quota ? Array.from({length: quota}, (_, i) => `<span class="dot${i < now ? " on" : ""}"></span>`).join("") : "";
+      if (dots) setHudHtml("evDots", quota ? Array.from({length: quota}, (_, i) => `<span class="dot${i < now ? " on" : ""}"></span>`).join("") : "");
       const pill = document.getElementById("evPill");
       if (pill) pill.style.display = quota ? "" : "none";
 
@@ -231,10 +250,18 @@
       const a = loadSaves(), box = document.getElementById("slotList"); box.innerHTML = "";
       a.forEach((d, i) => {
         const el = document.createElement("div"); el.className = "slot";
-        if (d) {
+        if (d && d.__future) {
+          /* v1.5 A 批：来自更新版本的档只读不写。这里绝不能碰
+           * d.ach / d.zhongkao 等字段 —— 新版本的结构我们不知道。 */
+          el.innerHTML = `<div class="info"><b>${L("save.slot", i + 1)} · ${d.name || L("save.anon")}</b><br><span style='color:var(--red)'>${L("save.future", d.__future)}</span></div>
+      <div><button class="btn" onclick="delSave(${i})">${L("save.delete")}</button></div>`;
+        } else if (d) {
           // 自动存档时记下是哪一周，主菜单能显示"已存到第 N 周"，玩家知道进度被记住了
           const autoTag = (d.auto && d.autoWeek != null) ? ` · <span style='color:var(--green)'>${L("save.auto")} ${L("hud.week", d.autoWeek)}</span>` : "";
-          el.innerHTML = `<div class="info"><b>${L("save.slot", i + 1)} · ${d.name || L("save.anon")}(${genderName(d.gender)})</b> · ${L("grade." + (Math.min(2, Math.floor(d.term / 2)) + 1))} ${L("hud.week", d.week)}${d.over ? ` · <span style='color:var(--red)'>${L("save.over")}</span>` : ""}${autoTag}<br>${L("save.info", d.zhongkao < 0 ? "—" : d.zhongkao, d.ach.length, d.time)}</div>
+          const suspect = d.__suspect ? `<span style='color:var(--red)'>${L("save.suspect")}</span> · ` : "";
+          const migrated = d.migratedFrom ? `<span style='color:var(--dim)'>${L("save.migrated", d.migratedFrom)}</span> · ` : "";
+          const achN = Array.isArray(d.ach) ? d.ach.length : 0;
+          el.innerHTML = `<div class="info"><b>${L("save.slot", i + 1)} · ${d.name || L("save.anon")}(${genderName(d.gender)})</b> · ${L("grade." + (Math.min(2, Math.floor(d.term / 2)) + 1))} ${L("hud.week", d.week)}${d.over ? ` · <span style='color:var(--red)'>${L("save.over")}</span>` : ""}${autoTag}<br>${suspect}${migrated}${L("save.info", d.zhongkao < 0 ? "—" : d.zhongkao, achN, d.time)}</div>
       <div><button class="btn green" onclick="resumeGame(${i})">${L("save.resume")}</button><button class="btn" onclick="if(confirm('${L("save.confirmOver")}'))newGameAt(${i})">${L("save.restart")}</button><button class="btn" onclick="delSave(${i})">${L("save.delete")}</button></div>`;
         } else {
           el.innerHTML = `<div class="info"><b>${L("save.slot", i + 1)}</b> · ${L("save.empty")}</div><div><button class="btn primary" onclick="newGameAt(${i})">${L("save.new")}</button></div>`;
@@ -266,7 +293,11 @@
       return "";
     }
 
-    function hideModalRaw() {document.getElementById("modalMask").classList.add("hidden")}
+    function hideModalRaw() {
+      const m = document.getElementById("modalMask");
+      m.classList.add("hidden");
+      m.classList.remove("gmk-standalone");
+    }
 
     /* 把换行转成 <br>，但只转「真正在文字中间」的那些换行。
      *
@@ -301,6 +332,13 @@
       const m = document.getElementById("modalMask");
       const modalEl = document.getElementById("modalBox") || m.querySelector(".modal");
       const kind = (meta && meta.kind) || "free";
+      /* 主菜单纯玩的小游戏：遮罩压到几乎不透明，背后主菜单不再透出来，
+       * 屏幕里只剩这一局棋。每次 showModal 重设，关掉时 hideModalRaw 清掉。 */
+      m.classList.toggle("gmk-standalone", !!(meta && meta.standalone));
+      /* ★ v1.4 E 批：把 onClose 存在遮罩上，让「选项里再开的小游戏」
+       * 能接住事件链的下一条（见 20-minigames.js）。
+       * 不存的话，棋盘结束时玩家点完就卡住，事件链断了。 */
+      m._onClose = (typeof onClose === "function") ? onClose : null;
       popupBusy = true;
       m.classList.remove("hidden");
       modalEl.classList.remove("k-event", "k-fixed", "k-ending", "k-free");
@@ -344,17 +382,34 @@
       let anyEnabled = false;
       list.forEach(o => {
         const btn = document.createElement("button"); btn.className = "btn primary optbtn";
-        btn.innerHTML = o.sub ? `<b>${o.t}</b><br><small>${o.sub}</small>` : o.t;
+        btn.innerHTML = o.sub ? `<b>${o.t}</b><br><small>${o.sub}</small>` : `<b>${o.t}</b>`;
         const dis = typeof o.disabled === "function" ? o.disabled(S) : o.disabled;
         if (dis) btn.disabled = true; else anyEnabled = true;
         btn.onclick = () => {
+          /* ★ v1.4「事事有回应」（需求 9）：这里是所有弹窗选项的唯一出口。
+           * 点击前开一次捕获（属性快照 + 日志游标），选项执行完后把
+           * 「事件文本 + 数值变化 + 期间解锁的天赋/成就 + 体力消耗」
+           * 合成一个反馈弹窗，玩家点确认才继续。
+           *   · kind:"feedback" 是反馈窗自己，不再自捕获
+           *   · meta.feedback:false 用于成绩单 / 做题结果 / 纯查看类，
+           *     它们自带完整内容，不必再套一层。 */
+          const noFb = !!(meta && (meta.kind === "feedback" || meta.feedback === false));
+          const cap = !noFb && typeof fbBegin === "function" && !!S;
+          if (cap) fbBegin(o.t || "");
           popupBusy = false;              // 先释放当前弹窗
           o.fn && o.fn(S);                // 若它内部又开了新弹窗，popupBusy 会重新变 true
           if (!popupBusy) {               // 没有新弹窗 → 收尾并交还控制权
+            const f = cap && typeof fbCollect === "function" ? fbCollect() : null;
             hideModalRaw();
-            setTimeout(ensureActionPanel, 0);
-            onClose && onClose();
+            if (f && typeof fbHasContent === "function" && fbHasContent(f)) {
+              fbShow(f, () => {setTimeout(ensureActionPanel, 0); onClose && onClose();});
+            } else {
+              setTimeout(ensureActionPanel, 0);
+              onClose && onClose();
+            }
           }
+          /* 选项内部又开了子弹窗：这次不弹反馈，FB_STATE 留着，
+           * 子弹窗点击时 fbBegin() 会把未展示的解锁继承过去，不丢信息。 */
           renderHUD();
         };
         ob.appendChild(btn);
@@ -389,6 +444,8 @@
     }
 
     function closeModal(onClose) {
+      /* X 按钮 / ESC 关闭时，丢掉还没用上的捕获，别污染下一次弹窗 */
+      if (typeof fbCollect === "function") fbCollect();
       hideModalRaw();
       popupBusy = false;
       setTimeout(ensureActionPanel, 0);
@@ -427,11 +484,28 @@
      * 题库见 js/05d-data-quiz.js 的 QUIZ_BANK。
      * ================================================================== */
 
-    function openQuiz(done) {
-      const q = (typeof pickQuiz === "function") ? pickQuiz() : null;
+    /* ==================================================================
+     * 做题（本周行动）· v1.4 需求 11
+     * ------------------------------------------------------------------
+     * 先在配置窗里选「科目 + 1~5 道」，再逐题作答，最后给一张汇总。
+     *   · 科目只在「本年级真正开设」的科目里给（quizSubjectsAvailable）
+     *   · 题目 g ≤ 当前年级，不会超纲
+     *   · 体力 = 8 + 7×题数（quizStamCost），付不起的题数直接禁用
+     *   · 答对本科目加学力，答错扣三成半；题量越大，总收益与总代价都越大
+     * 所有弹窗标 feedback:false —— 它们自带结果/讲解/汇总，不再套一层反馈窗。
+     * ================================================================== */
 
-      // 该年级暂无题目：退化成一次普通学习，不浪费玩家的行动
-      if (!q) {
+    function openQuiz(done) {
+      /* 做题必须能写字。笔报废后不能绕过行动面板直接进配置窗。 */
+      if (typeof bagGate === "function" && bagGate("quiz")) {
+        if (typeof toast === "function") toast("✏️ 没有能写字的笔了，做不了题 —— 去小卖部买一支");
+        if (typeof offerActions === "function") offerActions();
+        return;
+      }
+      const subs = (typeof quizSubjectsAvailable === "function") ? quizSubjectsAvailable() : [];
+
+      // 该年级一道题都抽不出：退化成一次普通学习，不浪费行动
+      if (!subs.length) {
         say(L("quiz.none"), "sys");
         studySettle("quiz");
         S.actCount = (S.actCount || 0) + 1;
@@ -442,87 +516,121 @@
         return;
       }
 
-      const grad = clamp(Math.floor(clampNum(S.term, 0, 9, 0) / 2), 0, 2);
-      const bonus = Math.round(14 + grad * 8);              // 答对：初一 14 → 初三 30
-      const penalty = -Math.max(4, Math.round(bonus * 0.35)); // 答错：扣三成半
-
-      const finish = (ok) => {
-        if (ok) {
-          S.subj[q.sub] = clamp(num(S.subj[q.sub], 30) + bonus, 0, SUBJ_CAP);
-          modProp("心态", 3);
-          if (Math.random() < 0.35) modProp("悟性", 1);
-          say(L("quiz.right", TZ(q.sub), bonus), "good");
-          floatGain(L("quiz.rightFloat", TZ(q.sub)), true);
-        } else {
-          S.subj[q.sub] = clamp(num(S.subj[q.sub], 30) + penalty, 0, SUBJ_CAP);
-          modProp("心态", -2); modProp("压力", 2);
-          say(L("quiz.wrong", TZ(q.sub), Math.abs(penalty)), "bad");
-          floatGain(L("quiz.wrongFloat", TZ(q.sub)), false);
-        }
-        recalcScore();
-        S.actCount = (S.actCount || 0) + 1;
-        S.didQuizWeek = num(S.week, 0);
-        S.didStudyWeek = num(S.week, 0);     // 做题也算"碰过学习"，避免天赋退化
-        count("quiz");
-        renderHUD();
+      const cfg = {sub: subs[rnd(subs.length)], n: 1};
+      const meta = {kind: "free", badge: "✏️ 做题", feedback: false};
+      const stamOf = n => (typeof quizStamCost === "function") ? quizStamCost(n) : (8 + 7 * n);
+      const poolN = sub => {
+        const g = clamp(Math.floor(clampNum(S.term, 0, 9, 0) / 2), 0, 2);
+        const bank = (QUIZ_BANK[sub] || []).filter(x => num(x.g, 0) <= g);
+        return bank.length;
       };
 
-      const meta = {kind: "free", badge: L("quiz.badge")};
-      const whyLine = q.why ? `<div style="margin-top:5px;color:var(--dim);font-size:.85rem">${L("quiz.why")} ${q.why}</div>` : "";
+      const bodyHtml = () => {
+        const left = (typeof staminaLeft === "function") ? staminaLeft() : 999;
+        let h = `<div class="quizcfg"><div class="qcfg-label">选科目（本年级开设的才列出来）</div><div class="qcfg-row">`;
+        subs.forEach(s2 => {
+          h += `<button type="button" class="namechip${cfg.sub === s2 ? " sel" : ""}" data-qsub="${s2}">${TZ(s2)}<small style="opacity:.65"> ${poolN(s2)} 题</small></button>`;
+        });
+        h += `</div><div class="qcfg-label">做几道（读题越久，耗的时间越多）</div><div class="qcfg-row">`;
+        for (let n = 1; n <= 5; n++) {
+          const c = stamOf(n), afford = (typeof canAfford === "function") ? canAfford(c) : true;
+          h += `<button type="button" class="namechip${cfg.n === n ? " sel" : ""}" data-qn="${n}" ${afford ? "" : "disabled style='opacity:.4'"} title="时间 −${c}">${n} 道 <small style="opacity:.65">⚡${c}</small></button>`;
+        }
+        h += `</div><div class="create-note">当前剩余时间 <b>${left}</b>。本次共 <b>${cfg.n}</b> 道 ${TZ(cfg.sub)}，消耗时间 <b>${stamOf(cfg.n)}</b>；剩余时间会在周末折算成健康。</div></div>`;
+        return h;
+      };
+
+      const bind = () => {
+        const box = document.getElementById("quizCfgBody");
+        if (!box) return;
+        box.querySelectorAll("button[data-qsub]").forEach(b => {
+          b.onclick = () => {cfg.sub = b.dataset.qsub; box.innerHTML = bodyHtml(); bind();};
+        });
+        box.querySelectorAll("button[data-qn]").forEach(b => {
+          b.onclick = () => {
+            cfg.n = clampNum(parseInt(b.dataset.qn, 10), 1, 5, 1);
+            box.innerHTML = bodyHtml(); bind();
+          };
+        });
+      };
+
+      showPopup({
+        kind: "free", badge: "✏️ 做题 · 配置", title: "今晚做哪几道",
+        body: `<div id="quizCfgBody">${bodyHtml()}</div>`,
+        options: [
+          {
+            t: "开始做题 →",
+            fn: () => {
+              const qs = (typeof pickQuizOf === "function") ? pickQuizOf(cfg.sub, cfg.n) : [];
+              if (!qs.length) {toast("这个科目当前年级没有合适的题，换一科试试。"); return;}
+              if (typeof spendStamina === "function") spendStamina(stamOf(qs.length), "做题");
+              runQuizSeries(qs, 0, [], done, meta);
+            }
+          },
+          {t: "算了，返回"}
+        ],
+        afterRender: bind
+      }, () => {if (typeof offerActions === "function") offerActions();});
+    }
+
+    /* 逐题作答：一次一题，答完显示讲解再进下一题，最后给汇总 */
+    function runQuizSeries(qs, idx, results, done, meta) {
+      if (idx >= qs.length) {quizSummary(qs, results, done, meta); return;}
+      const q = qs[idx];
+      const grad = clamp(Math.floor(clampNum(S.term, 0, 9, 0) / 2), 0, 2);
+      const bonus = Math.round(14 + grad * 8);          // 初一 14 → 初三 30
+      const penalty = -Math.max(4, Math.round(bonus * 0.35));
+
+      const nextAfterResult = (ok) => {
+        results.push({q, ok, delta: ok ? bonus : penalty});
+        const whyLine = q.why ? `<div style="margin-top:5px;color:var(--dim);font-size:.85rem">${L("quiz.why")} ${q.why}</div>` : "";
+        const tail = `<div style="margin-top:8px;color:var(--dim);font-size:.85rem">第 ${idx + 1} / ${qs.length} 题</div>`;
+        showModal("这一题", `<div style="line-height:1.62">
+          <div>${q.q}</div>
+          <div style="margin-top:5px;color:${ok ? "var(--green)" : "var(--red)"}">${ok ? L("quiz.correct") : L("quiz.incorrect")}</div>
+          <div style="margin-top:4px">${L("quiz.answer")} <b>${q.type === "choice" ? q.opts[q.ansIndex] : q.ans}</b></div>
+          ${whyLine}${tail}</div>`,
+          [{t: idx + 1 < qs.length ? "下一题 →" : "看看总成绩"}],
+          () => {runQuizSeries(qs, idx + 1, results, done, meta);},
+          false, false, meta);
+      };
 
       if (q.type === "choice") {
         const opts = q.opts.map((o, i) => ({
           t: o,
           fn: () => {
             const ok = (i === q.ansIndex);
-            finish(ok);
-            showModal(L("quiz.resultTitle"), `<div style="line-height:1.62">
-              <div>${q.q}</div>
-              <div style="margin-top:5px;color:${ok ? "var(--green)" : "var(--red)"}">${ok ? L("quiz.correct") : L("quiz.incorrect")}</div>
-              <div style="margin-top:4px">${L("quiz.answer")} <b>${q.opts[q.ansIndex]}</b></div>
-              ${whyLine}</div>`, [{t: L("modal.continue")}], () => {if (done) done();}, false, false, meta);
+            if (ok) {modProp("心态", 2); say(L("quiz.right", TZ(q.sub), bonus), "good");}
+            else {modProp("心态", -1); modProp("压力", 1); say(L("quiz.wrong", TZ(q.sub), Math.abs(penalty)), "bad");}
+            nextAfterResult(ok);
           }
         }));
         showModal(L("quiz.title", TZ(q.sub)), `<div style="line-height:1.62">${q.q}</div>
-          <div style="margin-top:6px;color:var(--dim);font-size:.82rem">${L("quiz.tip")}</div>`,
+          <div style="margin-top:6px;color:var(--dim);font-size:.82rem">${L("quiz.tip")}　·　第 ${idx + 1}/${qs.length} 题</div>`,
           opts, null, false, false, meta);
         return;
       }
 
-      // 填空题：手写一个答案
+      // 填空题
       const bodyHtml = `<div style="line-height:1.62">${q.q}</div>
-        <div style="margin-top:5px"><input id="quizInput" type="text" autocomplete="off"
-          placeholder="${L("quiz.placeholder")}"
+        <div style="margin-top:5px"><input id="quizInput" type="text" autocomplete="off" placeholder="${L("quiz.placeholder")}"
           style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--txt);font-size:.95rem"></div>
-        <div style="margin-top:6px;color:var(--dim);font-size:.82rem">${L("quiz.fillTip")}</div>`;
-
-      showModal(L("quiz.title", TZ(q.sub)), bodyHtml, [{
-        t: L("quiz.submit"),
-        fn: () => {
+        <div style="margin-top:6px;color:var(--dim);font-size:.82rem">${L("quiz.fillTip")}　·　第 ${idx + 1}/${qs.length} 题</div>`;
+      showModal(L("quiz.title", TZ(q.sub)), bodyHtml, [
+        {t: L("quiz.submit"), fn: () => {
           const el = document.getElementById("quizInput");
           const val = el ? el.value : "";
           const ok = (typeof quizMatch === "function") ? quizMatch(val, q.ans) : false;
-          finish(ok);
-          showModal(L("quiz.resultTitle"), `<div style="line-height:1.62">
-            <div>${q.q}</div>
-            <div style="margin-top:5px;color:${ok ? "var(--green)" : "var(--red)"}">${ok ? L("quiz.correct") : L("quiz.incorrect")}</div>
-            <div style="margin-top:4px">${L("quiz.answer")} <b>${q.ans}</b>${val ? `（${L("quiz.yours")} ${val}）` : ""}</div>
-            ${whyLine}</div>`, [{t: L("modal.continue")}], () => {if (done) done();}, false, false, meta);
-        }
-      }, {
-        t: L("quiz.giveup"),
-        fn: () => {
+          if (ok) {modProp("心态", 2); say(L("quiz.right", TZ(q.sub), bonus), "good");}
+          else {modProp("心态", -1); modProp("压力", 1); say(L("quiz.wrong", TZ(q.sub), Math.abs(penalty)), "bad");}
+          nextAfterResult(ok);
+        }},
+        {t: L("quiz.giveup"), fn: () => {
           say(L("quiz.giveupLog", TZ(q.sub)), "sys");
-          finish(false);
-          showModal(L("quiz.resultTitle"), `<div style="line-height:1.62">
-            <div>${q.q}</div>
-            <div style="margin-top:5px;color:var(--dim)">${L("quiz.gaveup")}</div>
-            <div style="margin-top:4px">${L("quiz.answer")} <b>${q.ans}</b></div>
-            ${whyLine}</div>`, [{t: L("modal.continue")}], () => {if (done) done();}, false, false, meta);
-        }
-      }], null, false, false, meta);
+          nextAfterResult(false);
+        }}
+      ], null, false, false, meta);
 
-      // 回车即提交：输入框里按 Enter 等同于点「交卷」
       setTimeout(() => {
         const el = document.getElementById("quizInput");
         if (!el) return;
@@ -534,6 +642,41 @@
           if (btn && !btn.disabled) btn.click();
         };
       }, 60);
+    }
+
+    /* 汇总：把学力变化一次性结算，再交还行动链 */
+    function quizSummary(qs, results, done, meta) {
+      const right = results.filter(r => r.ok).length;
+      const bySub = {};
+      results.forEach(r => {
+        bySub[r.q.sub] = num(bySub[r.q.sub], 0) + r.delta;
+      });
+      Object.keys(bySub).forEach(sub => {
+        S.subj[sub] = clamp(num(S.subj[sub], 30) + bySub[sub], 0, SUBJ_CAP);
+      });
+      recalcScore();
+      S.actCount = (S.actCount || 0) + 1;
+      S.didQuizWeek = num(S.week, 0);
+      S.didStudyWeek = num(S.week, 0);      // 做题也算碰过学习，避免天赋退化
+      /* v1.4 D 批：做题按题数磨损笔与袋身 */
+      if (typeof bagWear === "function") {
+        bagWear("write", qs.length * num((typeof BAG_RULES !== "undefined" ? BAG_RULES.wearPerQuiz : 1), 1), "做题");
+        bagWearBag(1);
+      }
+      count("quiz");
+      renderHUD();
+
+      const chips = Object.keys(bySub).map(sub =>
+        `<span class="fb-chip ${bySub[sub] >= 0 ? "good" : "bad"}">${TZ(sub)} ${bySub[sub] >= 0 ? "+" : ""}${bySub[sub]}</span>`
+      ).join("");
+      const verdict = right === qs.length ? "全对。这一晚没白坐。"
+        : (right === 0 ? "一道没对，但错题比空着强。" : `对了 ${right} 道，错的那些正好是下周该补的。`);
+      showModal("做完了", `<div style="line-height:1.62">
+        <div>共 <b>${qs.length}</b> 道 ${TZ(qs[0].sub)}，答对 <b style="color:var(--green)">${right}</b> 道。</div>
+        <div style="margin-top:6px;color:var(--dim)">${verdict}</div>
+        <div class="fb-chips" style="margin-top:9px">${chips}</div></div>`,
+        [{t: "收好卷子"}], () => {if (typeof done === "function") done();},
+        false, false, meta);
     }
 
     function toast(t, isAch) {

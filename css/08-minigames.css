@@ -1,0 +1,56 @@
+/* ==================================================================
+ * v1.4 E 批 · 五子棋棋盘
+ * v1.5.4 · 棋盘在任何屏幕上都严格正方形
+ * ------------------------------------------------------------------
+ * 原来写的是 width:min(416px,72vw); height:auto; max-height:52vh，
+ * 矮屏再加 max-height:40vh。height:auto 本来按 416×416 的 intrinsic
+ * 算出 1:1，但 max-height 会【单独】把高度钳住、宽度不动 ——
+ * 于是 1024×640 上变成 270×256 的扁矩形，格子和棋子都被压扁。
+ *
+ * 修法：把「高度上限」折算进边长本身，宽高都取同一个 --gmk-side，
+ * 不再用 max-height。状态栏和说明放在同宽的 .gmk-wrap 里自动换行，
+ * 不会把弹窗撑宽。JS 的 gmkFit() 还会再兜一次底。
+ * ================================================================== */
+.gmk-wrap {
+  --gmk-side: min(416px, 72vw, 46vh);
+  width: var(--gmk-side); max-width: 100%;
+  display:flex;flex-direction:column;align-items:center;gap:8px;padding:4px 0;
+  margin: 0 auto
+}
+.gmk-status {font-size:.9rem;color:var(--gold-soft);text-align:center;line-height:1.5;width:100%}
+.gmk-note {font-size:.76rem;color:var(--txt);text-align:center;line-height:1.5;width:100%}
+#gmkCanvas {
+  width:100%;height:var(--gmk-side);box-sizing:border-box;
+  aspect-ratio:1 / 1;              /* 双保险：任何情况下都锁 1:1 */
+  border:1px solid var(--line);border-radius:10px;
+  box-shadow:0 6px 24px rgba(var(--glow),.18),inset 0 1px 0 rgba(255,255,255,.08);
+  cursor:pointer;touch-action:manipulation;background:var(--panel);
+  display:block
+}
+/* 矮屏只调边长系数，不动高度 —— 棋盘会整体变小，但仍是正方形。
+ * 下限 180px：13 路格子至少 12px，还能点；再小就只是「看着是方形」而玩不了。
+ * 外层 min(92vw,…) 保证极窄视口也不会横向溢出。 */
+@media(max-height:700px){.gmk-wrap{--gmk-side:min(92vw,max(180px,min(416px,72vw,38vh)))}}
+/* 极矮屏（横屏手机 / 小窗）下限 160px，内容区允许轻微滚动 */
+@media(max-height:480px){.gmk-wrap{--gmk-side:min(92vw,max(160px,min(416px,72vw,32vh)))}}
+
+/* 主菜单纯玩：只有【棋盘还在】时弹窗宽度才贴着棋盘，整张卡片也是方的。
+ * 结果窗没有 canvas，:has 不命中，自动回到 .modal 的 width:92%，
+ * 免得一句收尾文案被挤成一根窄条。不支持 :has 的浏览器只是留白多一点，
+ * 棋盘本身仍然正方形（核心不受影响）。 */
+.modal-mask.gmk-standalone .modal:has(#gmkCanvas) {width:fit-content;max-width:92vw}
+
+/* ==================================================================
+ * v1.4.2 · 主菜单纯玩：屏幕里只剩这一局棋
+ * ------------------------------------------------------------------
+ * 默认遮罩是 rgba(5,3,15,.8)，主菜单那一排卡片还会透出 20%，
+ * 看起来像「棋盘旁边还有一堆东西」。纯玩时压到近乎不透明。
+ * ================================================================== */
+.modal-mask.gmk-standalone {
+  background: rgba(7, 5, 14, .97);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none
+}
+.modal-mask.gmk-standalone .modal {
+  box-shadow: 0 18px 60px rgba(0, 0, 0, .7)
+}

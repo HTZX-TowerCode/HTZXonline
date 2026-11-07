@@ -678,7 +678,7 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: var(--glow, #c08ae8);
+  background: rgb(var(--glow, 156, 77, 204));
   box-shadow: 0 0 0 3px rgba(255, 255, 255, .10);
   transition: transform .15s, box-shadow .15s, background .15s;
 }

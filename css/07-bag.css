@@ -1,0 +1,91 @@
+/* ==================================================================
+ * v1.4 D 批 · 文具袋 / 图书
+ * ------------------------------------------------------------------
+ * 只用 CSS 变量，九套主题都能自动适配；对比度由体检脚本保证。
+ * ================================================================== */
+.bag-head {
+  padding: 9px 11px; border-radius: 10px; margin-bottom: 9px;
+  background: rgba(255,255,255,.055); border: 1px solid var(--line);
+  line-height: 1.65; font-size: .87rem
+}
+.bag-head .create-note {margin-top: 4px}
+.bag-list {display: flex; flex-direction: column; gap: 7px; max-height: 44vh; overflow-y: auto}
+.bag-item {
+  display: grid; grid-template-columns: 34px 1fr auto; gap: 9px; align-items: center;
+  padding: 7px 9px; border-radius: 9px;
+  background: rgba(255,255,255,.035); border: 1px solid var(--line)
+}
+.bag-ico {font-size: 1.35rem; text-align: center}
+.bag-main {min-width: 0}
+.bag-name {font-size: .88rem; line-height: 1.5}
+.bag-desc {font-size: .76rem; color: var(--dim); line-height: 1.45; margin: 1px 0 4px}
+.bag-ops {white-space: nowrap}
+.tagtag {
+  display: inline-block; margin-left: 5px; padding: 0 5px; border-radius: 5px;
+  font-size: .66rem; color: var(--dim); background: rgba(255,255,255,.08);
+  border: 1px solid var(--line); vertical-align: middle
+}
+.tagtag.warn {color: var(--gold)}
+.tagtag.good {color: var(--green)}
+.bagbar {
+  /* v1.5 D 批：原来 7px 在手机上细得像根线，玩家反馈「看不清还剩多少」。
+   * 提到 12px，圆角跟着放大；0% 时轨道描边保证条不会像凭空消失。 */
+  display: inline-block; width: min(180px, 52%); height: 12px; border-radius: 6px;
+  background: rgba(255,255,255,.10); overflow: hidden; vertical-align: middle;
+  box-shadow: inset 0 0 0 1px var(--line)
+}
+/* 读书进度用金色，和耐久条一眼分开 */
+.bagbar.book > i {background: linear-gradient(90deg, var(--gold), var(--gold-soft))}
+.bagbar > i {display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, rgb(var(--glow, 156, 77, 204)), rgb(var(--glow2, 192, 138, 232))); transition: width .3s ease}
+.bagbar.low > i {background: var(--red)}
+.bag-head > .bagbar {width: min(260px, 70%); margin-top: 3px}
+.durnum {font-size: .76rem; color: var(--dim); margin-left: 6px}
+
+/* ==================================================================
+ * v1.5.3 · 文具袋三段分组 + 小卖铺全量分类货架
+ * 只用主题变量，九套主题自动适配；对比度由体检脚本保证。
+ * ================================================================== */
+.bag-group {
+  padding: 7px 4px 5px; margin-top: 3px; font-size: .78rem; font-weight: 600;
+  color: var(--txt); border-bottom: 1px solid var(--line); letter-spacing: .02em
+}
+.bag-group:first-child {margin-top: 0}
+
+.shop-head {font-size: .86rem; line-height: 1.6; margin-bottom: 10px}
+.shop-head > span {display: block; margin-top: 3px; font-size: .78rem; color: var(--dim)}
+.shop-group {
+  padding: 8px 3px 6px; margin-top: 9px; font-size: .84rem; font-weight: 600;
+  border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap;
+  align-items: baseline; gap: 8px
+}
+.shop-group:first-child {margin-top: 0}
+.shop-group > small {font-weight: 400; font-size: .73rem; color: var(--dim)}
+.shop-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 6px; margin-top: 7px
+}
+.shop-item {
+  display: grid; grid-template-columns: 26px 1fr auto; gap: 8px; align-items: center;
+  padding: 7px 9px; border-radius: 9px; text-align: left; cursor: pointer;
+  background: rgba(255,255,255,.045); border: 1px solid var(--line);
+  color: var(--txt); font: inherit; line-height: 1.45
+}
+.shop-item:hover:not(.off) {background: rgba(255,255,255,.10); border-color: rgb(var(--glow2, 192, 138, 232))}
+.shop-item.off {opacity: .52; cursor: not-allowed}
+.si-ico {font-size: 1.2rem; text-align: center}
+.si-main {min-width: 0}
+.si-main > b {display: block; font-size: .84rem; font-weight: 600}
+.si-main > em {
+  display: inline-block; margin: 2px 0 0; padding: 0 4px; border-radius: 4px;
+  font-size: .64rem; font-style: normal; color: var(--dim);
+  background: rgba(255,255,255,.08); border: 1px solid var(--line)
+}
+.si-main > small {display: block; margin-top: 2px; font-size: .71rem; color: var(--dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap}
+.si-no {color: var(--gold)}
+.si-price {font-size: .78rem; color: var(--gold); white-space: nowrap}
+
+@media (max-width: 620px) {
+  .shop-grid {grid-template-columns: 1fr}
+  .shop-item {padding: 6px 8px}
+}

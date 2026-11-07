@@ -249,7 +249,7 @@
         {g: 0, type: "choice", q: "对未成年人保护的基础是：", opts: ["家庭保护", "学校保护", "社会保护", "司法保护"], ans: "家庭保护", why: "家庭是保护的基础"},
         {g: 1, type: "choice", q: "处理纠纷最正规、最权威的手段是：", opts: ["诉讼", "协商", "调解", "仲裁"], ans: "诉讼", why: "诉讼是最权威的维权手段"},
         {g: 1, type: "fill", q: "我国宪法规定，中华人民共和国的一切权力属于___", ans: "人民", why: "国家一切权力属于人民"},
-        {g: 1, type: "choice", q: "下列属于公民基本义务的是：", opts: ["维护国家统一", "自由旅行", "选择职业", "发表言论"], ans: "维护国家统一", why: "维护国家统一是基本义务"},
+        {g: 1, type: "choice", q: "下列属于公民基本权利的是：", opts: ["选举权和被选举权", "依法纳税", "依法服兵役", "维护国家安全"], ans: "选举权和被选举权", why: "其余三项都是基本义务，注意区分权利与义务"},
         {g: 2, type: "choice", q: "我国的基本国情是：", opts: ["正处于并将长期处于社会主义初级阶段", "已经实现现代化", "已经是发达国家", "人口出现负增长"], ans: "正处于并将长期处于社会主义初级阶段", why: "这是我国最基本的国情"},
         {g: 2, type: "fill", q: "我国人口方面的基本国策是___（填四个字）", ans: "计划生育", why: "计划生育是基本国策"},
       ],
@@ -262,37 +262,128 @@
      * 不超过当前年级的题。选项顺序会打乱，避免背答案。
      * ================================================================== */
 
+    /* ==================================================================
+     * v1.4 C2 · 题库扩充（需求 11）
+     * ------------------------------------------------------------------
+     * 用追加而不是改上面的对象：同学往 QUIZ_BANK 里直接加题的习惯不变。
+     * 这里只是再补一批，按「科目 + 最低年级 g」分好；pickQuizOf() 会
+     * 再按当前年级过滤，保证初三不抽生地、初一不抽理化。
+     * ================================================================== */
+    const QUIZ_EXTRA = {
+      语文: [
+        {g:0,type:"choice",q:"「少壮不努力」的下一句是：",opts:["老大徒伤悲","老大图伤悲","老大独伤悲","老大空伤悲"],ans:"老大徒伤悲",why:"汉乐府《长歌行》"},
+        {g:0,type:"fill",q:"补全：谁言寸草心，______。",ans:"报得三春晖",why:"孟郊《游子吟》"},
+        {g:0,type:"choice",q:"「桃花潭水深千尺」下一句是：",opts:["不及汪伦送我情","不及汪伦赠我情","不及汪伦送我行","不及汪伦思我情"],ans:"不及汪伦送我情",why:"李白《赠汪伦》"},
+        {g:1,type:"fill",q:"补全：几处早莺争暖树，______。",ans:"谁家新燕啄春泥",why:"白居易《钱塘湖春行》"},
+        {g:1,type:"choice",q:"「出淤泥而不染」出自：",opts:["《爱莲说》","《陋室铭》","《马说》","《小石潭记》"],ans:"《爱莲说》",why:"周敦颐《爱莲说》"},
+        {g:2,type:"fill",q:"补全：了却君王天下事，______。",ans:"赢得生前身后名",why:"辛弃疾《破阵子》"},
+        {g:2,type:"choice",q:"「不以物喜，不以己悲」出自：",opts:["《岳阳楼记》","《醉翁亭记》","《记承天寺夜游》","《桃花源记》"],ans:"《岳阳楼记》",why:"范仲淹《岳阳楼记》"},
+        {g:2,type:"fill",q:"「但愿人长久，千里共___」",ans:"婵娟",why:"苏轼《水调歌头》"}
+      ],
+      数学: [
+        {g:0,type:"fill",q:"计算：−3 + 7 = ______",ans:"4",why:"异号相加，取绝对值大的符号"},
+        {g:0,type:"choice",q:"下列哪个是方程 2x = 8 的解？",opts:["x = 4","x = 2","x = 6","x = 8"],ans:"x = 4",why:"两边同除以 2"},
+        {g:0,type:"fill",q:"一个三角形两内角为 50° 和 60°，第三个角是 ______ 度。",ans:"70",why:"三角形内角和 180°"},
+        {g:1,type:"fill",q:"计算：√16 = ______",ans:"4",why:"算术平方根取非负值"},
+        {g:1,type:"choice",q:"一次函数 y = 2x − 3 与 y 轴交点纵坐标是：",opts:["−3","3","2","0"],ans:"−3",why:"令 x = 0"},
+        {g:1,type:"fill",q:"若 x² = 25 且 x > 0，则 x = ______",ans:"5",why:"取正根"},
+        {g:2,type:"fill",q:"方程 x² − 5x + 6 = 0 的较大根是 ______",ans:"3",why:"分解为 (x−2)(x−3)"},
+        {g:2,type:"choice",q:"半径为 3 的圆面积是：",opts:["9π","6π","3π","9"],ans:"9π",why:"S = πr²"},
+        {g:2,type:"fill",q:"sin 30° = ______（写小数或分数均可）",ans:"0.5",why:"特殊角三角函数值"}
+      ],
+      英语: [
+        {g:0,type:"choice",q:"—How are you? —______",opts:["I'm fine, thanks.","I'm twelve.","It's Monday.","Yes, I do."],ans:"I'm fine, thanks.",why:"问候语固定答法"},
+        {g:0,type:"fill",q:"写出「书」的英文：______",ans:"book",why:"book"},
+        {g:0,type:"choice",q:"She ______ to school by bike every day.",opts:["goes","go","going","went"],ans:"goes",why:"第三人称单数一般现在时"},
+        {g:1,type:"fill",q:"写出「星期三」的英文：______",ans:"Wednesday",why:"注意首字母大写"},
+        {g:1,type:"choice",q:"I have ______ finished my homework.",opts:["already","yet","ever","never"],ans:"already",why:"肯定句用 already"},
+        {g:2,type:"fill",q:"写出「重要的」英文形容词：______",ans:"important",why:"important"},
+        {g:2,type:"choice",q:"If it ______ tomorrow, we will stay at home.",opts:["rains","will rain","rained","is raining"],ans:"rains",why:"主将从现"},
+        {g:2,type:"fill",q:"被动语态：The room ______ (clean) every day. 填两个词",ans:"is cleaned",why:"一般现在时被动"}
+      ],
+      物理: [
+        {g:1,type:"fill",q:"光在真空中的速度约为 ______ ×10⁸ m/s（填数字）",ans:"3",why:"c ≈ 3×10⁸ m/s"},
+        {g:1,type:"choice",q:"下列哪个是力的单位？",opts:["牛顿","焦耳","瓦特","帕斯卡"],ans:"牛顿",why:"N 是力的单位"},
+        {g:1,type:"fill",q:"水的密度是 1.0 ______ /cm³（填质量单位）",ans:"g",why:"1.0 g/cm³"},
+        {g:2,type:"fill",q:"欧姆定律：U = I × ______（填字母）",ans:"R",why:"电压=电流×电阻"},
+        {g:2,type:"choice",q:"串联电路中各处电流：",opts:["相等","与电阻成正比","与电阻成反比","为零"],ans:"相等",why:"串联只有一条通路"},
+        {g:2,type:"fill",q:"1 kW·h = ______ J（写 3.6e6 这类形式）",ans:"3.6e6",why:"1000 W × 3600 s"},
+        {g:2,type:"choice",q:"凸透镜成实像时，物距大于二倍焦距，像的性质是：",opts:["倒立缩小","倒立放大","正立放大","正立缩小"],ans:"倒立缩小",why:"照相机原理"}
+      ],
+      化学: [
+        {g:2,type:"fill",q:"水的化学式是 ______",ans:"H2O",why:"氢二氧一"},
+        {g:2,type:"choice",q:"下列哪个是化学变化？",opts:["铁生锈","冰融化","玻璃破碎","酒精挥发"],ans:"铁生锈",why:"有新物质生成"},
+        {g:2,type:"fill",q:"空气中体积分数最大的气体是 ______（写名称）",ans:"氮气",why:"约占 78%"},
+        {g:2,type:"choice",q:"pH = 3 的溶液呈：",opts:["酸性","中性","碱性","无法判断"],ans:"酸性",why:"pH < 7 为酸性"},
+        {g:2,type:"fill",q:"写出「氧气」的化学式：______",ans:"O2",why:"双原子分子"},
+        {g:2,type:"choice",q:"实验室制取二氧化碳常用：",opts:["大理石与稀盐酸","锌与稀硫酸","高锰酸钾加热","电解水"],ans:"大理石与稀盐酸",why:"CaCO₃ + 2HCl"}
+      ],
+      生物: [
+        {g:0,type:"choice",q:"植物进行光合作用的主要器官是：",opts:["叶","根","茎","花"],ans:"叶",why:"叶绿体主要集中在叶片"},
+        {g:0,type:"fill",q:"细胞的控制中心是 ______",ans:"细胞核",why:"含遗传物质"},
+        {g:1,type:"choice",q:"人体最大的消化腺是：",opts:["肝脏","胃","胰腺","唾液腺"],ans:"肝脏",why:"分泌胆汁"},
+        {g:1,type:"fill",q:"血液中运输氧气的血细胞是 ______",ans:"红细胞",why:"含血红蛋白"},
+        {g:1,type:"choice",q:"下列属于生态系统生产者的是：",opts:["绿色植物","蘑菇","兔子","细菌"],ans:"绿色植物",why:"能进行光合作用"}
+      ],
+      地理: [
+        {g:0,type:"fill",q:"地球自转一周约 ______ 小时",ans:"24",why:"一个太阳日"},
+        {g:0,type:"choice",q:"云南省的简称是：",opts:["云或滇","贵","川","桂"],ans:"云或滇",why:"滇池、古滇国"},
+        {g:1,type:"fill",q:"玉溪市位于中国第 ______ 级阶梯（填一/二/三）",ans:"二",why:"云贵高原属第二级阶梯"},
+        {g:1,type:"choice",q:"世界上面积最大的大洋是：",opts:["太平洋","大西洋","印度洋","北冰洋"],ans:"太平洋",why:"约占地球海洋面积一半"},
+        {g:1,type:"fill",q:"经线指示 ______ 方向（填南北或东西）",ans:"南北",why:"经线连接南北两极"}
+      ],
+      历史: [
+        {g:0,type:"fill",q:"中国历史上第一个统一的多民族封建国家是 ______ 朝",ans:"秦",why:"公元前 221 年"},
+        {g:0,type:"choice",q:"主张「兼爱」「非攻」的是哪一学派？",opts:["墨家","儒家","道家","法家"],ans:"墨家",why:"墨子主张兼爱非攻"},
+        {g:1,type:"fill",q:"1840 年爆发的是 ______ 战争",ans:"鸦片",why:"中国近代史开端"},
+        {g:1,type:"choice",q:"辛亥革命发生于：",opts:["1911 年","1919 年","1921 年","1898 年"],ans:"1911 年",why:"武昌起义"},
+        {g:2,type:"fill",q:"中华人民共和国成立于 ______ 年",ans:"1949",why:"10 月 1 日"},
+        {g:2,type:"choice",q:"「文艺复兴」最早兴起于：",opts:["意大利","英国","法国","德国"],ans:"意大利",why:"佛罗伦萨等地"}
+      ],
+      政治: [
+        {g:0,type:"choice",q:"我国的根本大法是：",opts:["宪法","民法典","刑法","教育法"],ans:"宪法",why:"具有最高法律效力"},
+        {g:0,type:"fill",q:"我国现行宪法是 ______ 年颁布的（填年份）",ans:"1982",why:"八二宪法"},
+        {g:1,type:"choice",q:"公民最基本、最重要的权利是：",opts:["人身自由","财产权","受教育权","选举权"],ans:"人身自由",why:"其他权利的前提"},
+        {g:1,type:"fill",q:"我国的根本政治制度是 ______ 制度",ans:"人民代表大会",why:"人大制度"},
+        {g:2,type:"choice",q:"违法行为中最严重的是：",opts:["犯罪","行政违法","民事违法","违纪"],ans:"犯罪",why:"应受刑罚处罚"},
+        {g:2,type:"fill",q:"未成年人的父母或其他监护人对未成年人负有 ______ 职责（两字）",ans:"监护",why:"《未成年人保护法》"}
+      ]
+    };
+    Object.keys(QUIZ_EXTRA).forEach(sub => {
+      if (!QUIZ_BANK[sub]) QUIZ_BANK[sub] = [];
+      QUIZ_EXTRA[sub].forEach(q => QUIZ_BANK[sub].push(q));
+    });
+
+    /* ★ v1.4 需求 11：按「指定科目 + 题数」抽题。
+     * 只在本年级真正开设的科目里抽（subjectsOf），且题目 g ≤ 当前年级。
+     * 不会退化到全题库 —— 宁可少出几道，也不出超纲题。
+     * 返回 buildQuizItem() 包装好的数组，长度可能小于 n（题库不够时）。 */
+    function quizSubjectsAvailable() {
+      const subs = (typeof subjectsOf === "function" ? subjectsOf(S.term) : []) || [];
+      const g = gradeNow();
+      return subs.filter(s => QUIZ_BANK[s] && QUIZ_BANK[s].some(x => num(x.g, 0) <= g));
+    }
+
+    function pickQuizOf(sub, n) {
+      const g = gradeNow();
+      const avail = quizSubjectsAvailable();
+      if (avail.indexOf(sub) < 0) return [];
+      const bank = QUIZ_BANK[sub].filter(x => num(x.g, 0) <= g).slice();
+      const want = clampNum(n, 1, 5, 1);
+      const out = [];
+      while (out.length < want && bank.length) {
+        const k = rnd(bank.length);
+        const item = buildQuizItem(sub, bank[k]);
+        bank.splice(k, 1);
+        if (item) out.push(item);
+      }
+      return out;
+    }
+
     function gradeNow() {
       return clamp(Math.floor(clampNum(S && S.term, 0, 9, 0) / 2), 0, 2);
     }
 
-    function pickQuiz() {
-      const g = gradeNow();
-      const subs = (typeof subjectsOf === "function" ? subjectsOf(S.term) : []) || [];
-      const usable = subs.filter(s => QUIZ_BANK[s] && QUIZ_BANK[s].length);
-      if (!usable.length) return null;
-
-      /* 随机挑一科。注意：只在「本年级真正会考的科目」里挑 ——
-       * 科目表 SUBJECTS_BY_GRADE 已经按年级给了（初三没有生物地理、
-       * 初一没有物理化学），所以这里直接照它走就对了。 */
-      const sub = usable[rnd(usable.length)];
-
-      /* 再从这科里挑一道「不超过当前年级」的题。
-       * ★ 以前这里有个兜底：该科没有够格的题时，退化成整本题库，
-       *   结果初一可能抽到初三的题（超纲）。现在改成换一科 ——
-       *   所有科都没合适的题就返回 null，退化为一次普通学习，
-       *   宁可不出题，也不出超纲题。 */
-      const bank = QUIZ_BANK[sub].filter(x => num(x.g, 0) <= g);
-      if (!bank.length) {
-        // 这科在当前年级没题 → 换一科再试
-        const alt = usable.filter(s2 => s2 !== sub && QUIZ_BANK[s2].some(x => num(x.g, 0) <= g));
-        if (!alt.length) return null;
-        const s2 = alt[rnd(alt.length)];
-        const b2 = QUIZ_BANK[s2].filter(x => num(x.g, 0) <= g);
-        return buildQuizItem(s2, b2[rnd(b2.length)]);
-      }
-      return buildQuizItem(sub, bank[rnd(bank.length)]);
-    }
 
     /* 把题库里的一条原始记录包装成一道可作答的题 */
     function buildQuizItem(sub, raw) {

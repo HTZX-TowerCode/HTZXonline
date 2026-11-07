@@ -438,15 +438,6 @@
       </div>`, [{t: "知道了", fn: () => {}}], () => nextWeek(), false, false, {kind: "fixed"});
     }
 
-    function vacationDungeon() {
-      const termNames = ["初一", "初二", "初三"];
-      setBackground("alt");            // 假期换一张更清爽的背景
-      showModal(`假期副本 · ${termNames[Math.min(2, Math.floor(S.term / 2))]}篇`, "学期结束!假期是一张崭新的地图。选择你的假期副本——", [
-        {t: "📚 补习营副本", fn: () => dungeonTutor(1)},
-        {t: "🧗 社会实践副本", fn: () => dungeonSocial(1)},
-        {t: "🏝 躺平休养副本", fn: () => dungeonRest(1)},
-      ], null, false, false, {kind: "fixed"});
-    }
 
     /* 假期结束 → 进下一学期。
      * v1.2 起正常的假期走 js/05e-data-vacation.js 的 endVacation()，

@@ -24,8 +24,8 @@
  *
  * 恢复步骤（将来接手的人照做即可）：
  *   1. 在 I18N 里加回 en: { ... } 一张表
- *   2. 把 LANG 从 const 改成 let，加回 setLang() / applyLangToDom()
- *   3. 在 index.html 放一个切换按钮，onclick="toggleLang()"
+ *   2. 把 LANG 从 const 改成 let，加回 setLang()，启用现有的 applyLangToDom()
+ *   3. 在 index.html 放一个切换按钮并接上 setLang()
  *   4. 全项目 276 处 L("key") 一行都不用动
  *
  * 维护约定：
@@ -62,14 +62,15 @@
                 "menu.settings": "设置",
         "menu.themeHint": "点一下就换，立刻生效，会记住你的选择",
         
+        /* v1.5 D 批：旧版写的是「每周 1~2 次行动」「天赋不会在一开始赠送」
+         * 「小卖铺 / 读书角」，全都不成立了 —— 现在是一格剩余时间、
+         * 游戏/模拟可自选天赋、小卖部卖文具。整段重写，去掉抒情收尾。 */
         "about.body":
-          `你将经历初一至初三共 <b style="color:var(--gold)">120 周</b>（每学期 20 周），直至中考。<br>
-           寒暑假不计入周数，它是学期之间的一段独立时间。<br>
-           <b style="color:var(--purple)">天赋不会在一开始赠送</b> —— 它们藏在一次次选择里。<br>
-           每周可做 <b style="color:var(--gold)">1~2 次本周行动</b>，每次行动后都会跟一个 <b style="color:var(--gold)">⚡ 事件弹窗</b>，偶尔还会连锁出后续事件。<br>
-           <b style="color:var(--green)">🎒 小卖铺 / 读书角 / 天赋图鉴 / 成就</b> 属于自由操作，<b>不占用行动次数</b>。<br>
-           一些负面天赋是可以<b style="color:var(--green)">「破茧」消除</b>的 —— 坚持学习、坚持休息，阴影总会散去。<br>
-           <span style="color:var(--dim);font-size:.85rem">「人生在立，行达天下」—— 登上立行号，这三年走的每一步，都算数。</span>`,
+          `初一走到中考，共 <b style="color:var(--gold)">120 周</b>（每学期 20 周）。寒暑假独立成段，不占周数。<br>
+           每周有一格 <b style="color:var(--gold)">剩余时间</b>，行动和事件选项都从里面扣；用完收周，也可以自己点「进入下一周」。<br>
+           游戏、模拟模式开局能<b style="color:var(--purple)">自选天赋</b>；真实模式的天赋在一次次选择里长出来，负面天赋可以破茧消掉。<br>
+           <b style="color:var(--green)">🎒 文具袋 / 📚 读书 / 🏪 小卖部 / 🎨 主题</b> 随时能打开。<br>
+           笔会磨坏，书有进度，借来的书到期要还；选完每个选项都会弹一次回话。`,
 
         /* ---------------- 顶栏 / HUD ---------------- */
         "hud.week": "第 {0} 周",
@@ -81,7 +82,6 @@
         "hud.save": "💾 保存",
         "hud.home": "🏠 主菜单",
         "hud.theme": "🎨 主题",
-        "hud.lang": "🌐 中/EN",
 
         "hud.talent": "天赋",
         "hud.talentHint": "点击看详情",
@@ -265,6 +265,10 @@
         "save.saved": "💾 已保存",
         "save.loaded": "💾 存档读取成功，继续你的初中生活！",
         "save.anon": "无名氏",
+        "save.future": "⚠ 来自更新版本（v{0}），请升级游戏后再读取",
+        "save.futureBlock": "⚠ 这个存档来自更新版本，当前版本不能读取或覆盖它",
+        "save.suspect": "⚠ 存档校验异常，可能被手动改过",
+        "save.migrated": "（已从 v{0} 升级）",
         "save.male": "男",
         "save.female": "女",
 
@@ -458,9 +462,15 @@
     }
 
     /* 往某个 id 的元素里塞文本，元素不存在就安静跳过 */
+    const SET_TEXT_CACHE = Object.create(null);
     function setText(id, txt) {
       const el = document.getElementById(id);
-      if (el) el.textContent = txt;
+      if (!el) return null;
+      /* 值没变就别写：textContent 赋值即使相同也会让样式失效 */
+      if (SET_TEXT_CACHE[id] !== txt) {
+        SET_TEXT_CACHE[id] = txt;
+        el.textContent = txt;
+      }
       return el;
     }
 
@@ -529,9 +539,9 @@
     function openDoc(key) {
       const d = (typeof GAME_DOCS !== "undefined") && GAME_DOCS[key];
       if (!d) {if (typeof toast === "function") toast(L("doc.missing")); return;}
-      const note = (LANG !== "zh")
-        ? `<p style="color:var(--dim);font-size:.78rem;margin-top:8px">This document is still in Chinese — translation in progress.</p>`
-        : "";
-      showModal(d.title, '<div class="markdown">' + d.html + '</div>' + note,
+      /* v1.5 D 批：删掉英文 note。LANG 固定 zh，这段从来不会执行，
+       * 但它是「页面出现中英混合」的唯一残留入口，留着只会让下一位接手者困惑。
+       * 英语模式将来要恢复时，在这里加回 note 即可。 */
+      showModal(d.title, '<div class="markdown">' + d.html + '</div>',
         [{t: L("modal.close"), fn: function () { }}], null, false, true, {kind: "doc"});
     }

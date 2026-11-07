@@ -24,7 +24,9 @@
     }
 
     .badge.c6 {
-      animation: goldPulse 2s ease-in-out infinite
+      /* v1.4.3：天赋面板可能常驻，无限 text-shadow 动画会一直重绘。
+       * 改成静态发光，高级天赋照样一眼认得出。 */
+      box-shadow: 0 0 10px rgba(var(--glow2), .28)
     }
 
     .badge.c7 {
@@ -33,30 +35,13 @@
       -webkit-background-clip: text;
       background-clip: text;
       -webkit-text-fill-color: transparent;
-      animation: rainbowFlow 3s linear infinite, goldPulse 2s ease-in-out infinite
+      background-position: 35% 50%;
+      box-shadow: 0 0 14px rgba(255, 209, 102, .30)
     }
 
-    @keyframes goldPulse {
-
-      0%,
-      100% {
-        text-shadow: 0 0 6px rgba(var(--glow2), .5)
-      }
-
-      50% {
-        text-shadow: 0 0 16px rgba(var(--glow2), .9), 0 0 24px rgba(255, 209, 102, .5)
-      }
-    }
-
-    @keyframes rainbowFlow {
-      0% {
-        background-position: 0% 50%
-      }
-
-      100% {
-        background-position: 200% 50%
-      }
-    }
+    /* v1.4.3：goldPulse / rainbowFlow 已移除 —— 它们动的是
+     * text-shadow 和 background-position，属于每帧重绘的无限动画。
+     * 高级天赋徽章改用上面的静态发光，观感一致。 */
 
     .talentitem.c6 {
       border-color: var(--gold);
@@ -71,7 +56,9 @@
     .toast.ach-toast {
       background: linear-gradient(135deg, #ffd166, #ff9f1c, #ffd166);
       background-size: 200% 100%;
-      animation: toastIn .4s cubic-bezier(.34, 1.56, .64, 1), rainbowFlow 2s linear infinite;
+      /* 入场动画保留（只跑一次），去掉无限背景流动 */
+      animation: toastIn .4s cubic-bezier(.34, 1.56, .64, 1);
+      background-position: 35% 50%;
       box-shadow: 0 0 30px rgba(255, 209, 102, .6)
     }
 
@@ -159,7 +146,7 @@
      * 系统上没有行楷时会优雅落到楷体，不会变成默认黑体。 */
     .school-brand .school-motto {
       font-size: .92rem;
-      font-family: "STXingkai", "华文行楷", "Xingkai SC", "行楷", "KaiTi", "楷体", "Kaiti SC", kai, serif;
+      font-family: "华文行楷", "STXingkai", "Xingkai SC", "行楷", "KaiTi", "楷体", "Kaiti SC", kai, serif;
       font-weight: normal;
       color: var(--gold-soft);
       letter-spacing: 3px;

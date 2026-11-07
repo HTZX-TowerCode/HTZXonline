@@ -181,17 +181,14 @@
       text-align: center;
       color: var(--gold-soft);
       text-shadow: 0 0 24px rgba(215, 180, 90, .45);
-      animation: titleGlow 3s ease-in-out infinite alternate
+      /* v1.4.3：原来动的是 text-shadow —— 每帧都要重绘文字，
+       * 是常驻无限动画。改成只动 opacity，走合成层不重绘。 */
+      animation: titleGlow 3.6s ease-in-out infinite alternate
     }
 
     @keyframes titleGlow {
-      from {
-        text-shadow: 0 0 24px rgba(215, 180, 90, .45)
-      }
-
-      to {
-        text-shadow: 0 0 40px rgba(240, 212, 136, .85)
-      }
+      from {opacity: .88}
+      to {opacity: 1}
     }
 
     .sub {
@@ -218,7 +215,7 @@
   font-size: .74rem;
   line-height: 1.5;
   font-family: inherit;
-  color: var(--glow2, #c9a3e0);
+  color: rgb(var(--glow2, 192, 138, 232));
   background: rgba(255, 255, 255, .05);
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -230,7 +227,7 @@
 
 .about-toggle:hover {
   background: rgba(255, 255, 255, .12);
-  border-color: var(--glow2, #c9a3e0)
+  border-color: rgb(var(--glow2, 192, 138, 232))
 }
 
 .about-toggle:active {transform: translateY(1px)}
@@ -249,4 +246,9 @@
 
 @media(prefers-reduced-motion: reduce) {
   .about-toggle .chev {transition: none}
+}
+
+/* v1.4.3：系统开了「减少动态效果」时，标题呼吸也停 */
+@media(prefers-reduced-motion: reduce) {
+  h1 {animation: none}
 }

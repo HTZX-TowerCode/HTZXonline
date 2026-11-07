@@ -227,9 +227,3 @@
       return m;
     }
 
-    /* 季节文案（用于 HUD 与事件开头） */
-    function seasonLine() {
-      if (!S) return "";
-      const w = weekInfo(S.week, S.term);
-      return SEASON_DESC[w.season] || "";
-    }

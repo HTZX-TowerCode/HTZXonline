@@ -21,7 +21,8 @@
       talent5: {n: "天赋异禀", d: "同时拥有 5 个天赋", c: S => Talent.owned.length >= 5},
       talent8: {n: "天选之人", d: "同时拥有 8 个天赋", c: S => Talent.owned.length >= 8},
       contest: {n: "竞赛之星", d: "入选竞赛班", c: S => (S.cnt.contestWin || 0) >= 1},
-      love: {n: "青春悸动", d: "给同学递出一张纸条", c: S => (S.cnt.love || 0) >= 1},
+      /* v1.5 C 批：成就只记那张纸条本身，不解释它意味着什么。 */
+      love: {n: "一张纸条", d: "递出去又收回来的那张", c: S => (S.cnt.love || 0) >= 1},
       pressure100: {n: "压力山大", d: "压力达到 100", c: S => S.prop.压力 >= 100},
       survive2y: {n: "初三老兵", d: "升入初三", c: S => S.term >= 4},
       resist5: {n: "钢铁意志", d: "拒绝诱惑 5 次", c: S => (S.cnt.resist || 0) >= 5, unlock: "道心如铁"},

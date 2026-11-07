@@ -31,7 +31,7 @@
         ]
       },
       {
-        id: "sp_pullup", w: 5, dist: "uniform", minGap: 4, slot: "weekday",
+        id: "sp_pullup", w: 5, noTalent: ["体弱多病"], dist: "uniform", minGap: 4, slot: "weekday",
         t: "单杠上的赌局",
         c: "课间几个男生围在单杠边数数。\n有人问你：「你能做几个？」\n你知道自己一个都做不了，但大家都看着你。",
         opts: [
@@ -51,7 +51,7 @@
         ]
       },
       {
-        id: "sp_sprain", w: 3, dist: "decay", decay: 0.5, slot: "any",
+        id: "sp_sprain", w: 3, noTalent: ["钢筋铁骨", "天行健"], dist: "decay", decay: 0.5, slot: "any",
         t: "脚踝拧了一下",
         c: "起跳落地时踩到了别人的脚，脚踝一阵尖锐的疼。\n你坐在地上缓了一会儿，能站起来，但走起来有点瘸。",
         opts: [
@@ -71,7 +71,7 @@
         ]
       },
       {
-        id: "sp_morning", w: 4, dist: "uniform", minGap: 4, slot: "weekday",
+        id: "sp_morning", w: 4, needTalent: ["晨型人", "操场晨光", "自律机器"], dist: "uniform", minGap: 4, slot: "weekday",
         t: "五点四十的操场",
         c: "你不知道为什么今天醒得这么早。\n天还没亮透，操场上只有雾和两三个身影。\n跑道上有露水，踩上去有点滑。",
         opts: [
@@ -87,7 +87,7 @@
         opts: [
           {t: "全力跑", cond: S => S.prop.健康 >= 60, run: ["健康 +5", "效率 +5", "压力 -4", "心态 +5", "提示 你跑进了及格线，还快了几秒。老师说这个成绩中考没问题。!good"]},
           {t: "全力跑（身体吃力）", cond: S => S.prop.健康 < 60, run: ["健康 -5", "压力 +8", "心态 -5", "提示 最后两百米你几乎是走着过的。成绩单上的数字不太好看。!bad"]},
-          {t: "保存体力慢慢跑", run: ["健康 +1", "心态 -2", "提示 你匀速跑完了全程，成绩平平，但至少没出洋相。"]}
+          {t: "留着力气慢慢跑", run: ["健康 +1", "心态 -2", "提示 你匀速跑完了全程，成绩平平，但至少没出洋相。"]}
         ]
       },
       {

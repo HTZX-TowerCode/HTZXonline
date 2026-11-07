@@ -1,0 +1,340 @@
+/* ==================================================================
+ * 创角独立页 · 样式（v1.4 需求 1）
+ * ==================================================================
+ * 只负责这一页的布局；配色一律沿用主题变量与 .card / .btn，
+ * 这样九套主题换过去不用单独适配。
+ *
+ * 同时放了「游戏模式学科常驻面板」的样式（.subjmini）。
+ * 维护等级：界面层
+ * ================================================================== */
+
+#createScreen {
+  display: block;
+  overflow-y: auto;
+  /* 底部留出操作条的高度，别让最后一张卡片被 fixed 条挡住 */
+  padding: 18px 14px 96px;
+  -webkit-overflow-scrolling: touch
+}
+
+/* .hidden 已在 css/02-components.css 里定义为 display:none !important */
+
+.create-wrap {
+  width: min(100%, 1000px);
+  margin: 0 auto
+}
+
+.create-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px
+}
+
+.create-head h1 {
+  font-size: 1.35rem;
+  margin: 0;
+  letter-spacing: 2px
+}
+
+.create-head .create-sub {
+  color: var(--dim);
+  font-size: .82rem;
+  flex: 1 1 100%;
+  line-height: 1.6
+}
+
+.create-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px
+}
+
+@media(max-width:760px) {
+  .create-grid {grid-template-columns: 1fr}
+}
+
+.create-card {
+  padding: 12px 14px;
+  min-width: 0
+}
+
+.create-card.wide {grid-column: 1 / -1}
+
+.create-card .tag-title {margin-bottom: 9px}
+
+.create-label {
+  font-size: .8rem;
+  color: var(--dim);
+  margin: 10px 0 6px
+}
+
+.create-label:first-child {margin-top: 0}
+
+/* 姓名：自由输入 + 五个随机姓名 + 换一批 */
+.name-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap
+}
+
+.name-input-row input[type=text] {
+  flex: 1 1 180px;
+  min-width: 140px;
+  padding: 8px 11px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  color: var(--txt);
+  font-family: inherit;
+  font-size: .95rem
+}
+
+.name-input-row input[type=text]:focus {
+  outline: none;
+  border-color: rgb(var(--glow2, 192, 138, 232))
+}
+
+.namechips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px
+}
+
+.namechip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .05);
+  color: var(--txt);
+  font-family: inherit;
+  font-size: .88rem;
+  cursor: pointer;
+  transition: background .16s ease, border-color .16s ease
+}
+
+.namechip:hover {background: rgba(255, 255, 255, .12)}
+
+.namechip.sel {
+  border-color: rgb(var(--glow2, 192, 138, 232));
+  background: rgba(255, 255, 255, .16);
+  color: var(--gold)
+}
+
+.mini-btn {
+  padding: 5px 11px;
+  font-size: .8rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--dim);
+  font-family: inherit;
+  cursor: pointer
+}
+
+.mini-btn:hover {color: var(--txt); border-color: rgb(var(--glow2, 192, 138, 232))}
+
+.gender-row {display: flex; gap: 14px; margin-top: 9px; font-size: .88rem}
+.gender-row label {cursor: pointer}
+
+/* 三段 / 四段 / 六段选择器共用 */
+.optgrid {
+  display: grid;
+  gap: 6px
+}
+
+.optgrid.c2 {grid-template-columns: repeat(2, minmax(0, 1fr))}
+.optgrid.c3 {grid-template-columns: repeat(3, minmax(0, 1fr))}
+
+@media(max-width:520px) {
+  .optgrid.c3 {grid-template-columns: repeat(2, minmax(0, 1fr))}
+}
+
+.optbtn {
+  padding: 8px 10px;
+  text-align: left;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .04);
+  color: var(--txt);
+  font-family: inherit;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: background .16s ease, border-color .16s ease, transform .16s ease
+}
+
+.optbtn:hover {background: rgba(255, 255, 255, .1); transform: translateY(-1px)}
+
+.optbtn.sel {
+  border-color: rgb(var(--glow2, 192, 138, 232));
+  background: rgba(255, 255, 255, .14)
+}
+
+.optbtn b {display: block; font-size: .9rem}
+.optbtn small {display: block; color: var(--dim); font-size: .74rem; margin-top: 2px}
+.optbtn.sel b {color: var(--gold)}
+
+/* 手填生地成绩 */
+.hk-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center
+}
+
+.hk-row label {font-size: .86rem; display: flex; align-items: center; gap: 6px}
+
+.hk-row input[type=number] {
+  width: 78px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  color: var(--txt);
+  font-family: inherit
+}
+
+.create-note {
+  font-size: .76rem;
+  color: var(--dim);
+  line-height: 1.6;
+  margin-top: 7px
+}
+
+/* 自选天赋 */
+.pickbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 9px;
+  font-size: .84rem
+}
+
+.pickbar .budget {
+  font-weight: bold;
+  color: var(--gold)
+}
+
+.pickbar .budget.over {color: var(--red)}
+
+.talentpick {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 6px;
+  max-height: 250px;
+  overflow-y: auto;
+  padding-right: 3px
+}
+
+.tpick {
+  padding: 7px 9px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .04);
+  color: var(--txt);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  line-height: 1.35
+}
+
+.tpick:hover {background: rgba(255, 255, 255, .1)}
+
+.tpick b {font-size: .85rem; display: block}
+.tpick small {font-size: .71rem; color: var(--dim)}
+
+.tpick.sel {border-color: rgb(var(--glow2, 192, 138, 232)); background: rgba(255, 255, 255, .15)}
+.tpick.sel b {color: var(--gold)}
+.tpick.bad b {color: var(--red)}
+.tpick.conflict {opacity: .42; border-style: dashed}
+.tpick.conflict b {text-decoration: line-through}
+
+.pick-msg {
+  min-height: 1.3em;
+  font-size: .8rem;
+  margin-top: 8px;
+  color: var(--dim)
+}
+
+.pick-msg.warn {color: var(--red)}
+.pick-msg.ok {color: var(--green)}
+
+/* 底部操作条
+ * ★ fixed 吸底：创角页在 game/sim 模式下很长（20 个候选天赋 + 家庭背景），
+ *   1024×640 矮屏上「开始这一局」原本落在 1129px，玩家得先滚半屏。
+ *   试过 sticky bottom:0 —— 元素本身就在包含块末尾，浏览器不会把它
+ *   「提前」拉进视口，所以没生效；改用 fixed 才可靠。
+ *
+ * ★★ 两个坑（别改回去）：
+ *   1) 不能用 left:50% + translateX(-50%) 居中 —— 这条 div 同时带 .card，
+ *      而 .card 有 fadeInUp 入场动画，动画帧的 transform 优先级高于普通声明，
+ *      会把 translateX 冲掉，按钮直接跑出视口右侧（实测 left=1356 > 1024）。
+ *      改成 left:0 / right:0 / margin:0 auto，完全不依赖 transform。
+ *   2) 不能留 margin-top —— fixed 下它会把元素整体往下推，bottom 超出视口。
+ *   顺手把动画关掉，吸底条不该跟着抖一下。
+ */
+.create-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 auto;
+  padding: 12px 14px;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: min(96vw, 1000px);
+  z-index: 5;
+  animation: none;
+  background: var(--panel, #171225);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, .28)
+}
+
+.create-foot .foot-tip {
+  flex: 1 1 220px;
+  font-size: .8rem;
+  color: var(--dim);
+  line-height: 1.6
+}
+
+.create-foot .btn {min-width: 120px}
+
+/* ==================================================================
+ * 游戏模式：学科学力常驻面板
+ * ================================================================== */
+.subjmini {
+  display: grid;
+  gap: 3px;
+  margin-top: 5px
+}
+
+.sjrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .76rem
+}
+
+.sjrow > span:first-child {width: 2.6em; flex: 0 0 2.6em}
+.sjrow .bar {flex: 1; height: 6px}
+.sjrow b {width: 3em; text-align: right; color: var(--txt)}
+
+/* ==================================================================
+ * v1.4 交互修复：创角页不要"点一下抖一下"
+ * ------------------------------------------------------------------
+ * 骨架现在只画一次，但局部替换某个 section 时它仍带 .card，
+ * fadeInUp 入场动画会重播一次 —— 看起来还是闪。
+ * 创角页不需要每张卡的入场动画：整体淡入一次就够，
+ * 卡片本身一律关掉动画；按钮选中态改用 transition 平滑过渡。
+ * ================================================================== */
+.create-wrap {animation: fadeIn .18s ease-out both}
+.create-card, .create-foot {animation: none !important}
+.optbtn, .namechip, .tpick {
+  transition: background .16s ease, border-color .16s ease, box-shadow .16s ease, transform .16s ease
+}
+/* #cpHkSlot / #cpTalentSlot 是占位容器，不该把自己变成一张卡 */
+#cpHkSlot, #cpTalentSlot {display: contents}

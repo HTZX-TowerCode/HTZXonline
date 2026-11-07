@@ -26,8 +26,11 @@
       v = Math.sqrt(Math.max(0, num(v, 0))) * 10;
       if (S.examCharm) v += 5;
       if (S.penCharm) v += 5;
+      /* v1.4：「草稿纸上的演算」「融会贯通」让考场噪声小一些 */
+      const calm = (typeof Talent !== "undefined" &&
+        (Talent.have("草稿纸上的演算") || Talent.have("融会贯通"))) ? 0.6 : 1;
       v = v * num(diff.examHard, 1) * (typeof studyCfg === "function" ? studyCfg().examMul : 1)
-        + (Math.random() * 2 - 1) * num(diff.noise, 0);
+        + (Math.random() * 2 - 1) * num(diff.noise, 0) * calm;
       return v;
     }
 
@@ -44,7 +47,9 @@
       const c = (typeof GAME_CONFIG !== "undefined" && GAME_CONFIG.study) || {};
       /* v1.3：难度档位乘在基础值上。
        * 三档共用一套基础旋钮已经不够分档了 —— 硬核要真的更难。 */
-      const lv = (typeof GAME_CONFIG !== "undefined" && GAME_CONFIG.difficulty) || "normal";
+      /* v1.4：四档难度；旧存档的 story 由 diffKey() 归一成 easy */
+      const lv = (typeof diffKey === "function") ? diffKey()
+        : ((typeof GAME_CONFIG !== "undefined" && GAME_CONFIG.difficulty) || "normal");
       const tune = ((typeof GAME_CONFIG !== "undefined" && GAME_CONFIG.difficultyTune) || {})[lv] || {};
       return {
         gainMul: num(c.gainMul, 1) * num(tune.gainMul, 1),
@@ -66,6 +71,14 @@
      * ================================================================== */
 
     function sportSettle(onDone) {
+      /* v1.4 D 批（需求 13）：运动消耗球拍类文具；有拍子给一点额外加成，
+       * 没有也能跑 —— 这条是软门槛，避免把玩家彻底锁死。 */
+      if (typeof bagWear === "function") {
+        bagWear("sport", num((typeof BAG_RULES !== "undefined" ? BAG_RULES.wearPerSport : 2), 2), "运动");
+        bagWearBag(1);
+      }
+      const sportGear = (typeof bagSportBonus === "function") ? bagSportBonus() : null;
+      if (sportGear) Object.keys(sportGear).forEach(k => {if (typeof modProp === "function") modProp(k, sportGear[k]);});
       const p = S.prop;
       for (const k in PROP_RANGE) p[k] = fixProp(k, p[k]);
 
@@ -75,6 +88,7 @@
       if (Talent.have("钢筋铁骨")) hp += 3;
       if (Talent.have("体弱多病")) {hp = Math.round(hp * 0.5); stress += 3;}
       if (Talent.have("大胃袋")) hp = Math.round(hp * 0.8);
+      if (Talent.have("操场晨光")) hp = Math.round(hp * 1.15);   // v1.4
       if (p.健康 < 40) {hp = Math.round(hp * 0.6); stress += 4; mind -= 2;}   // 身体差，练不动
 
       modProp("健康", hp);
@@ -94,14 +108,17 @@
     }
 
     function difficultyCurve(week, term) {
-      /* 难度曲线按「本局进度」走，而不是绝对周数。
-       * 原来固定除以 144（三年局的周数），导致只玩初一 / 只玩初三的短局
-       * 全程都停在最容易的档位 —— 考出来接近满分，短局反而是最简单的。
-       * 现在按本局实际跨度换算：短局第 40 周 ≈ 长局第 120 周的难度。 */
-      const from = (typeof startTerm === "function") ? startTerm() : 0;
-      const to = (typeof endTerm === "function") ? endTerm() : 5;
-      const spanWeeks = Math.max(1, (to - from + 1)) * num(WEEKS_PER_TERM, 20);
-      const t = clampNum(week, 0, 2000) / spanWeeks;
+      /* ★ v1.4：S.week 现在是【全局连续周】(0~119)，从中间学期开局时
+       * week = termFrom × 20。难度按「在整个初中三年里的位置」走 ——
+       * 年级越高越难，不管玩家从哪一学期开始，初三下都是最难的阶段。
+       *
+       * 曾经改成"本局进度"是为了修短局问题（旧版 S.week 一律从 0 起，
+       * 只玩初三的短局全程停在最容易档）。现在周数本身接续了，
+       * 就不必再按本局长度换算 —— 否则"初二下开局"会全程顶着最难档。 */
+      const totalWeeks = Math.max(1,
+        (typeof configTerms === "function" ? configTerms() : 6)
+        * num(typeof WEEKS_PER_TERM !== "undefined" ? WEEKS_PER_TERM : 20, 20));
+      const t = clampNum(week, 0, 2000) / totalWeeks;
       const tt = clampNum(t, 0, 1);
       const termT = Math.min(1, clampNum(term, 0, 10) / 5);
       const gainMul = 1.18 - 0.42 * Math.pow(tt, 1.35);
@@ -134,7 +151,7 @@
       return wu;
     }
 
-    function newGame(name, gender) {
+    function newGame(name, gender, opts) {
       Talent.owned = [];
       /* 玩家在创角界面选的起始学期（0=初一上 … 5=初三下）。
        * 从中间年级开局时，各科要按那个年级应有的水平初始化，
@@ -145,12 +162,21 @@
       const baseWu = (GAME_CONFIG.start && num(GAME_CONFIG.start.wu, 0) > 0)
         ? num(GAME_CONFIG.start.wu, 10) : 10 + t0 * 22;
 
+      /* ★ v1.4：S.week 是【全局连续周】(0~119)，不是"本局第几周"。
+       * 从初二上开局就该接着第 41 周往下数，而不是显示"第 1 周"。
+       * 这也和假期推进天然吻合：term=N 的第 20 周 → 假期 → term=N+1 → 第 (N+1)*20+1 周。 */
+      const week0 = t0 * num(typeof WEEKS_PER_TERM !== "undefined" ? WEEKS_PER_TERM : 20, 20);
+
       S = {
-        week: 0, term: t0, name: name || "无名氏", gender: gender || "男",
+        week: week0, term: t0, name: name || "无名氏", gender: gender || "男",
         evCnt: {},
         /* 从高年级开局时，悟性也要跟着起步（见 TERM_PLAN 里的 wu） */
         prop: {心态: 100 + rnd(31) - 15, 经济: 100 + rnd(31) - 15, 健康: 100 + rnd(31) - 15, 效率: 100 + rnd(31) - 15, 悟性: baseWu + rnd(15), 社交: 100 + rnd(31) - 15, 压力: 10},
-        score: 0, lastExamScore: 0, bestExam: 0, zhongkao: -1,
+        score: 0, lastExamScore: 0, bestExam: 0, zhongkao: -1, zkFull: 0,
+        /* v1.4：真实度写进存档，读档后沿用同一套可见性 */
+        realism: (GAME_CONFIG.start && GAME_CONFIG.start.realism) || "real",
+        /* 生地会考 / 实验操作 —— 以前没存档，读档会丢，v1.4 一起补上 */
+        hk: {}, hkDone: false, exp: {},
         studyBuff: 0, buffWeeks: 0, studyDebuff: 0, debuffWeeks: 0,
         cnt: {}, ach: [], over: false, dead: null, logs: [],
         subj: {}, items: {},
@@ -182,9 +208,32 @@
       subjectsOf(t0).forEach(s => S.subj[s] = baseSubj + rnd(20));
       S.prop = sanitizeProp(S.prop);
       S.subj = sanitizeSubj(S.subj);
-      rollStartTalents();
+
+      /* v1.4 D 批（需求 13）：开局随机给一套文具 —— 必给笔 + 橡皮 + 袋。
+       * 绝不出现「一支笔都没有、又没钱买，学习直接锁死」的死局。 */
+      if (typeof bagGiveStart === "function") bagGiveStart();
+
+      /* 天赋：游戏 / 模拟模式用创角页选好的清单，其余走原来的随机池。
+       * 自选清单直接写 owned（不走 gainTalent）—— 开局没有悟性可扣，
+       * 也不该被 Lv6/Lv7 的属性门槛挡住，那是玩家花额度换来的。 */
+      const picked = (opts && Array.isArray(opts.talents)) ? opts.talents.filter(n => !!TALENTS[n]) : null;
+      if (picked && picked.length) {Talent.owned = picked.slice(); Talent.solve();}
+      else rollStartTalents();
       applyStartTalentBonuses();
-      /* 中考在哪个学期结束（见 GAME_CONFIG.start.termTo） */
+
+      /* 起点在生地会考之后：用玩家手填的成绩，并补齐当时已考过的生物实验分。
+       * 中考 zhongkao() 的 paperOf() 会直接读 S.hk，不再拿当前学力去估。 */
+      if (opts && opts.hk && typeof startAfterHuiKao === "function" && startAfterHuiKao()) {
+        S.hk = {
+          生物: clampNum(opts.hk.生物, 0, 90, 0),
+          地理: clampNum(opts.hk.地理, 0, 100, 0)
+        };
+        S.hkDone = true;
+        S.exp.生物 = 10;
+        say(`📘 生地会考成绩已带入：生物 ${S.hk.生物}、地理 ${S.hk.地理}。`, "exam");
+      }
+
+      /* 中考在哪个学期结束（恒为初三下，见 endTerm） */
       S.endTerm = (typeof endTerm === "function") ? endTerm() : 5;
       recalcScore();
     }
@@ -210,8 +259,12 @@
 
     function rollStartTalents() {
       const FAMILY_POOL = ["家财万贯", "家徒四壁", "小康之家", "书香门第", "官宦世家", "单亲家庭", "留守少年", "教师子女", "商人家庭", "艺术世家"];
-      const START_POOL = ["热情", "豪", "高冷", "吃货", "游戏宅", "晨型人", "熬夜冠军", "运动健将", "大胃袋", "理财达人", "佛系少年", "玻璃心", "内耗者"];
-      const NEGATIVE_POOL = ["厌学", "注意力涣散", "社恐", "网瘾", "拖延症", "考试焦虑", "偏食", "夜猫子", "暴躁"];
+      /* v1.4：新增的 6 个正面 / 4 个负面天赋也进随机池，
+       * 这样真实模式（不开放自选）同样能在一局里碰到它们。 */
+      const START_POOL = ["热情", "豪", "高冷", "吃货", "游戏宅", "晨型人", "熬夜冠军", "运动健将", "大胃袋", "理财达人", "佛系少年", "玻璃心", "内耗者",
+        "晨读书声", "错题本", "草稿纸上的演算", "操场晨光", "一手好字", "问不停"];
+      const NEGATIVE_POOL = ["厌学", "注意力涣散", "社恐", "网瘾", "拖延症", "考试焦虑", "偏食", "夜猫子", "暴躁",
+        "偏科到极点", "考前抱佛脚", "丢三落四", "上课走神"];
       const fam = FAMILY_POOL[rnd(FAMILY_POOL.length)];
       gainTalent(fam, "出身·免费");
       const n = rnd(3);
@@ -240,9 +293,11 @@
        * 但富家子弟依然有"不会为钱发愁"的底气（见下面的额外补贴）。 */
       if (Talent.have("家财万贯")) p.经济 += 45;
       if (Talent.have("家财万贯") && p.经济 < 80) p.经济 = 80;    // 兜底：不至于真的没钱
-      else {
-        let v = rnd(41) - 20 - (Talent.have("家徒四壁") ? 10 : 0) - (Talent.have("大胃袋") ? 10 : 0) - (Talent.have("吃货") ? 5 : 0) + (Talent.have("偏食") ? 10 : 0);
-        if (Talent.have("理财达人") && v > 0) v = Math.floor(v * 1.5); p.经济 += v;
+      else if (Talent.have("家徒四壁")) {
+        /* ★ v1.4 需求 10：删掉「每周随机掉一点经济」的机制。
+         * 经济从今往后只由：考试成绩结算、向父母要零花钱、
+         * 天赋固定补贴、以及具体事件（亲情事件 / 旅游等）决定。 */
+        p.经济 += 4;
       }
       /* 注意：这里不能写 Math.max(0, …) —— 那样会把剧情模式的经济保底线
        * （storyFloorMoney，默认 10）抹掉，导致经济归零、触发「辍学打工」提前结束。
@@ -263,7 +318,9 @@
       const wuGain = weeklyWuGain();
       if (wuGain > 0) {
         p.悟性 = clamp(p.悟性 + wuGain, 10, 150);
-        if (wuGain >= 2) floatGain(`悟性 +${wuGain}`, true);
+        /* v1.5 D 批：悟性是隐藏属性，真实 / 模拟模式下不漏具体数值。 */
+        const wuNum = (typeof propShowsNumber === "function") && propShowsNumber("悟性");
+        if (wuGain >= 2 && wuNum) floatGain(`悟性 +${wuGain}`, true);
       }
       if (Talent.have("心如明镜")) p.心态 = clamp(p.心态 + 5, 0, 150);
       if (Talent.have("大彻大悟")) {p.心态 = clamp(p.心态 + 5, 0, 150); p.压力 = clamp(p.压力 - 5, 0, 150);}
@@ -280,6 +337,17 @@
       if (Talent.have("深度抑郁")) {p.心态 = clamp(p.心态 - 8, 0, 150); p.压力 = clamp(p.压力 + 6, 0, 150);}
       if (Talent.have("考试焦虑")) p.心态 = clamp(p.心态 - 3, 0, 150);
       if (Talent.have("重度厌学")) p.压力 = clamp(p.压力 + 8, 0, 150);
+
+      /* ---- v1.4 新增天赋的每周钩子（和 js/03d-talent-pick.js 一一对应） ---- */
+      if (Talent.have("操场晨光")) p.健康 = clamp(p.健康 + 5, 0, 150);
+      if (Talent.have("一手好字")) p.心态 = clamp(p.心态 + 2, 0, 150);
+      if (Talent.have("错题本")) p.悟性 = clamp(p.悟性 + 1, 10, 150);
+      if (Talent.have("问不停")) {p.悟性 = clamp(p.悟性 + 3, 10, 150); p.社交 = clamp(p.社交 + 2, 10, 150);}
+      if (Talent.have("上课走神")) p.效率 = clamp(p.效率 - 3, 10, 150);
+      if (Talent.have("丢三落四") && Math.random() < 0.12) {
+        p.效率 = clamp(p.效率 - 3, 10, 150);
+        say("🎒 又丢了点东西，翻遍书包才想起来。效率 -3", "bad");
+      }
 
       // 社交
       if (Talent.have("社交牛逼症")) p.社交 = Math.max(130, p.社交 + rnd(21) - 10);
@@ -338,6 +406,11 @@
       // 属性兜底：任何一项变成非法值都会在这里被修正
       for (const k in PROP_RANGE) S.prop[k] = fixProp(k, S.prop[k]);
 
+      /* v1.5 C 批：心事的每周结算放在最后 —— 属性兜底之后，
+       * 保证 modProp 写进去的值不会被上面的 clamp 抹掉。
+       * 丢天赋 / 找回只在这里挂「待弹窗」，真正弹窗在 startWeek。 */
+      if (typeof romanceWeekly === "function") romanceWeekly();
+
       // 重置本周事件计数
       S.evCntWeek = {};
       S.evCountWeek = 0;
@@ -362,6 +435,10 @@
       if (Talent.have("融会贯通")) rate *= 1.1;
       if (Talent.have("厌学") && action === "study") rate *= 0.8;
       if (Talent.have("重度厌学") && action === "study") rate *= 0.6;
+      /* v1.4 新增天赋 */
+      if (Talent.have("错题本")) rate *= 1.06;
+      if (Talent.have("考前抱佛脚")) rate *= 0.88;
+      if (Talent.have("上课走神")) rate *= 0.85;
       if (Talent.have("拖延症") && action === "study" && Math.random() < 0.3) rate *= 0.5;
       if (Talent.have("网瘾") && action === "fun") rate *= 1.5;
       if (Talent.have("严重网瘾") && action === "fun") rate *= 2.0;
@@ -373,13 +450,24 @@
 
       const diff = difficultyCurve(S.week, S.term);
       rate *= diff.gainMul * studyCfg().gainMul;   // v1.1：收益整体下调
+      /* v1.5 C 批：心事状态下学习收益打七折（不鼓励，但不在任何介绍里说明） */
+      if (typeof romanceStudyMul === "function") rate *= romanceStudyMul();
+
+      /* v1.4 D 批：文具散落 → 学习效率打折；同时磨损笔与袋身。
+       * 放在 rate 算完之后，保证只影响这一次的学力收益。 */
+      if (typeof bagStudyMul === "function") rate *= bagStudyMul();
+      if (typeof bagWear === "function" && (action === "study" || action === "quiz")) {
+        bagWear("write", num((typeof BAG_RULES !== "undefined" ? BAG_RULES.wearPerStudy : 3), 3), "学习");
+        bagWearBag(1);
+      }
 
       /* v1.3：学习是有代价的 —— 每学一次，健康掉一点、压力涨一点。
        * 数值按开局难度走（GAME_CONFIG.study.studyCost），
        * 这样「一直学」不再是稳赚不赔的选项，休息和运动才有意义。 */
       if (action === "study" || action === "quiz") {
         const costTable = (studyCfg().studyCost) || {};
-        const lv = (typeof GAME_CONFIG !== "undefined" && GAME_CONFIG.difficulty) || "normal";
+        const lv = (typeof diffKey === "function") ? diffKey()
+          : ((typeof GAME_CONFIG !== "undefined" && GAME_CONFIG.difficulty) || "normal");
         const c = costTable[lv] || costTable.normal || {hp: 3, st: 4};
         const scale = (action === "quiz") ? 0.5 : 1;      // 做题比整周苦读轻松些
         modProp("健康", -Math.round(num(c.hp, 3) * scale));
@@ -405,6 +493,10 @@
         if (Talent.have("格物致知") && ["物理", "化学", "生物"].includes(sub)) share *= 1.2;
         if (Talent.have("运筹帷幄") && sub === "数学") share *= 1.2;
         if (Talent.have("博古通今") && ["历史", "政治", "地理"].includes(sub)) share *= 1.2;
+        /* v1.4 新增天赋 */
+        if (Talent.have("晨读书声") && ["语文", "英语"].includes(sub)) share *= 1.12;
+        if (Talent.have("草稿纸上的演算") && sub === "数学") share *= 1.18;
+        if (Talent.have("偏科到极点") && sub === weakest) share *= 0.75;
         if (Talent.have("夜猫子") && action === "study" && Math.random() < 0.5) share *= 1.15;
         const rel = S.subj[sub] / (S.term + 1);
         if (rel < 180) share *= 1.15;
@@ -531,6 +623,29 @@
       }, () => {if (typeof onDone === "function") onDone();});
     }
 
+    /* ==================================================================
+     * 考完试，爸妈看成绩单（需求 10）
+     * ------------------------------------------------------------------
+     * 取代原来「每周随机掉一点经济」的机制：钱现在有来处，也有去处。
+     * 分档看绝对成绩，也看和上次比是进步还是退步。
+     * 想调金额改这一处即可。
+     * ================================================================== */
+    function parentsExamGift(avg, prev) {
+      const d = Math.round(avg - prev);
+      const r = Math.round(Math.random() * 12);
+      if (avg >= 88) return {money: 45 + r, fam: 3,
+        txt: "爸妈把成绩单看了两遍，没多说什么，往你书包里多塞了些零花钱。"};
+      if (d >= 8) return {money: 30 + r, fam: 4,
+        txt: "比上次进步不少，爸妈挺高兴，说这周多给你一点。"};
+      if (d <= -12) return {money: -(18 + r), fam: -3,
+        txt: "退步得有点多，爸妈皱着眉说这周零花钱先扣一部分，等下次考回来。"};
+      if (avg < 55) return {money: -(8 + Math.round(r / 2)), fam: -2,
+        txt: "成绩不太好看，爸妈没骂你，但这次的零花钱少了一些。"};
+      if (avg >= 70) return {money: 15 + Math.round(r / 2), fam: 2,
+        txt: "成绩中规中矩，爸妈照例把这一周的零花钱给了你。"};
+      return {money: 5, fam: 0, txt: "爸妈照例问了两句，钱还是照给。"};
+    }
+
     function exam(name) {
       const p = S.prop;
       for (const k in PROP_RANGE) p[k] = fixProp(k, p[k]);
@@ -555,6 +670,7 @@
         if (Talent.have("格物致知") && ["物理", "化学", "生物"].includes(sub)) v += 5;
         if (Talent.have("博古通今") && ["历史", "政治", "地理"].includes(sub)) v += 5;
         if (Talent.have("融会贯通")) v += 3;
+        if (Talent.have("一手好字") && sub === "语文") v += 6;   // v1.4
         if (Talent.have("考试焦虑")) v -= 8;
         /* v1.3：百分制原始分 → 实际卷面分
          *  · 语文走曲线（87 以上每分要 2.5 倍学力）
@@ -571,6 +687,11 @@
       if (S.examCharm) {S.examCharm = false;}
       if (S.penCharm) {S.penCharm = false;}
       const avg = full > 0 ? Math.round(total / full * 100) : 0;
+      /* ★ v1.4 需求 10：每次考完按成绩（以及与上次的落差）给/扣零花钱。
+       * 用 prevExamScore 记住上一次，才有「进步 / 退步」的说法。 */
+      const prevAvg = num(S.prevExamScore, avg);
+      S.prevExamScore = avg;
+      const gift = (typeof parentsExamGift === "function") ? parentsExamGift(avg, prevAvg) : null;
       S.lastExamScore = clampNum(avg, 0, 100); S.bestExam = Math.max(num(S.bestExam, 0), S.lastExamScore); count("exam");
       /* 考试相关的成就（「初露锋芒 · 第一次参加月考」等）在分数出来的这一刻判定，
        * 不等下一次行动 —— 以前要等到下一周第一次行动时的 checkAch 才解锁。 */
@@ -582,12 +703,21 @@
       else modProp("心态", 2);
       if (fullMarks.length) {S.cnt.subjFull = (S.cnt.subjFull || 0) + fullMarks.length;}
       if (perfect && subs.length > 0) count("allPerfect");
-      showModal(L("exam.sheet", TZ(name)), `<div>${rows.join("")}</div><div style="margin-top:5px;text-align:right;color:var(--gold)">${L("exam.avg")}:<b>${avg}</b> / 100　·　${L("exam.total")} <b>${Math.round(total)}</b> / ${full}</div>${fullMarks.length ? `<div style="color:var(--green);margin-top:6px">${L("exam.fullMarks", TZ(fullMarks.join("、")))}</div>` : ""}`,
+      const familyLine = gift
+        ? `<div class="exam-family">🧧 ${gift.txt}<br><span style="font-size:.86rem;color:var(--dim)">经济 ${gift.money >= 0 ? "+" : ""}${gift.money}　亲情 ${gift.fam >= 0 ? "+" : ""}${gift.fam}</span></div>`
+        : "";
+      showModal(L("exam.sheet", TZ(name)), `<div>${rows.join("")}</div><div style="margin-top:5px;text-align:right;color:var(--gold)">${L("exam.avg")}:<b>${avg}</b> / 100　·　${L("exam.total")} <b>${Math.round(total)}</b> / ${full}</div>${fullMarks.length ? `<div style="color:var(--green);margin-top:6px">${L("exam.fullMarks", TZ(fullMarks.join("、")))}</div>` : ""}${familyLine}`,
         [{
           t: L("exam.accept"), fn: () => {
+            if (gift) {
+              modProp("经济", gift.money);
+              modProp("亲情", gift.fam);
+              say(`🧧 ${gift.txt} 经济 ${gift.money >= 0 ? "+" : ""}${gift.money}，亲情 ${gift.fam >= 0 ? "+" : ""}${gift.fam}`,
+                gift.money >= 0 ? "good" : "bad");
+            }
             if (!S.daoDone && (avg >= 82 || p.悟性 >= 115) && Math.random() < 0.5) {examDao(avg);}
             else {nextWeek();}
           }
-        }], null, false, false, {kind: "fixed"});
+        }], null, false, false, {kind: "fixed", feedback: false});
       return avg;
     }

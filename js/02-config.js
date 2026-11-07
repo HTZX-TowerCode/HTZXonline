@@ -60,6 +60,11 @@
       // 每周事件总数硬上限（防止一局被拉得太长）
       maxEventsPerWeek: 3,          // v1.3：从 4 降到 3
 
+      /* v1.5 C 批：剧情长链（由事件选项 next 排队）单独计深度，
+       * 不占上面 maxEventsPerWeek 的随机事件配额 —— 否则 6 层链跑不完。
+       * 6 层是硬上限，防止内容作者写出环把自己绕死。 */
+      epicMaxDepth: 6,
+
       // 事件结果的展示方式
       //   "popup" = 弹窗完整展示（推荐，看得清）
       //   "log"   = 直接写进右侧日志，不弹窗（一局能快一倍）
@@ -90,34 +95,77 @@
       },
 
       /* ==============================================================
-       * 开局设置：难度 + 玩哪几个学期
+       * 开局设置：难度 + 真实度 + 从哪个学期开始
        * --------------------------------------------------------------
        * 这里是「默认值」，玩家在创角界面上选完之后会覆盖它，
        * 并连同存档一起记住（见 js/18-save.js）。
-       * TERM_PLAN 里的每一项 = 一个可选的时间跨度：
-       *   from / to  起始学期 / 结束学期（0=初一上 … 5=初三下）
-       *   base       开局各科的初始学力（跳过的年级要补上，否则初三开局等于留级）
+       *
+       * ★ v1.4：真实度与难度是【两个独立维度】，3 × 4 = 12 种组合。
+       *   真实度只管「看得见什么」，难度只管「数值有多狠」，互不干扰。
        * ============================================================== */
       start: {
-        /* v1.3：默认「玩满整个初中」+「最高难度」。
-         * 想改回轻松的展示模式，把 difficulty 改成 "story" 即可。 */
-        difficulty: "hard",
-        planId: "full",      // 完整三年（初一上 → 初三下）
+        difficulty: "hard",   // 四档：easy / normal / hard / hell
+        realism: "real",      // 三档：game / sim / real（默认真实 = 保持旧版手感）
+        planId: "t0",         // 从哪个学期开始，见 TERM_PLAN
         termFrom: 0,
-        termTo: 5
+        termTo: 5             // ★ 所有存档终点统一初三下，不可改
       },
 
-      /* 可选的时间跨度（创角界面按这个顺序显示）
-       * base = 开局各科的初始学力，wu = 开局悟性。
-       * ★ 这两个数是拿"完整局玩到该学期的实际水平"标定的，
-       *   目的是让"只玩初三"的起跑线 ≈ 认真玩到初三的人，
-       *   而不是白捡一个高分、也不是被当成留级生。想调就改这两个数。 */
-      TERM_PLAN: [
-        {id: "full", from: 0, to: 5, base: 30, wu: 10},
-        {id: "from2", from: 2, to: 5, base: 86, wu: 54},
-        {id: "only3", from: 4, to: 5, base: 142, wu: 98},
-        {id: "only1", from: 0, to: 1, base: 30, wu: 10}
+      /* --------------------------------------------------------------
+       * 三档真实度（需求 2 / 3）
+       *   game 游戏 —— 所有属性、学科、条类都显示具体数值
+       *   sim  模拟 —— 属性给五档文字，但条类（体力/耐久/进度）给数值
+       *   real 真实 —— 保持现状：四项可见、除经济外五档、条类只有长度
+       * ★ 经济在任何模式下都是数值可见。
+       * -------------------------------------------------------------- */
+      REALISM_MODES: [
+        {id: "game", name: "游戏", sub: "所有数值都看得见"},
+        {id: "sim",  name: "模拟", sub: "属性给档位，条类给数值"},
+        {id: "real", name: "真实", sub: "维持现状，只有视觉长度"}
       ],
+
+      /* --------------------------------------------------------------
+       * 四档难度（需求 4）
+       * 数值写在 difficultyTune，由 studyCfg() 乘到四个基础旋钮上。
+       * ★ 默认仍是 hard（困难）：hell 是额外挑战档，不适合做默认开局。
+       *   旧存档里的 "story" 会归一成 "easy"，见 applyStartSetup。
+       * -------------------------------------------------------------- */
+      DIFFICULTIES: [
+        {id: "easy",   name: "简单", sub: "有保底，适合展示与第一次玩"},
+        {id: "normal", name: "一般", sub: "标准节奏，学休自己安排"},
+        {id: "hard",   name: "困难", sub: "收益收紧，压力与健康都吃紧"},
+        {id: "hell",   name: "地狱", sub: "效率再打折，健康见底即出局"}
+      ],
+
+      /* 地狱难度的额外硬规则（其余档位一律不启用）
+       * 参考 liuenyin/recallbj8z，但【不照搬「开局天赋点 -1」】——
+       * 那条与需求 5 的 6/4 点自选额度体系冲突。
+       * shopPriceMul / weekendStudyMax 先留接口，D 批文具与 C 批时间表接手。 */
+      DIFFICULTY_RULES: {
+        hell: {
+          hpEnd: 10,            // 健康 < 10 → 立即结束
+          mindLock: 20,         // 心态 < 20 → 学习类选项不可用
+          shopPriceMul: 2,      // 小卖部 / 文具价格翻倍
+          weekendStudyMax: 1    // 每周最多一次学习型周末活动
+        }
+      },
+
+      /* 六个学期均可作为起点（需求 7）。
+       * to 一律 5 —— 每个存档的终点都是初三下毕业中考。
+       * base / wu 拿「完整局玩到该学期的实际水平」标定，
+       * 保证从中间年级开局既不是白捡高分，也不是留级重读。
+       * label 只给创角界面显示用。 */
+      TERM_PLAN: [
+        {id: "t0", from: 0, to: 5, base: 30,  wu: 10,  label: "初一上"},
+        {id: "t1", from: 1, to: 5, base: 56,  wu: 30,  label: "初一下"},
+        {id: "t2", from: 2, to: 5, base: 86,  wu: 54,  label: "初二上"},
+        {id: "t3", from: 3, to: 5, base: 114, wu: 76,  label: "初二下"},
+        {id: "t4", from: 4, to: 5, base: 142, wu: 98,  label: "初三上"},
+        {id: "t5", from: 5, to: 5, base: 160, wu: 115, label: "初三下"}
+      ],
+
+      /* 旧存档里可能出现的 planId，读档时映射到新的六档 */
+      LEGACY_PLAN_MAP: {full: "t0", from2: "t2", only3: "t4", only1: "t0"},
 
       difficulty: "hard",
       storyFloor: 15,        // story 模式下 健康 / 心态 的最低保底线
@@ -154,9 +202,11 @@
          * 每次「学习」都掉一点健康、涨一点压力，数值随开局难度走。
          * hp = 健康扣多少，st = 压力涨多少 */
         studyCost: {
-          story:  {hp: 1, st: 0},   // 剧情：几乎不痛
-          normal: {hp: 2, st: 2},   // 标准：连学两三周就该考虑休息了
-          hard:   {hp: 5, st: 5}    // 硬核：连学就得付出代价
+          story:  {hp: 1, st: 0},   // 旧存档兼容（归一到 easy）
+          easy:   {hp: 0, st: 0},   // 简单：几乎不痛
+          normal: {hp: 2, st: 2},   // 一般：连学两三周就该考虑休息了
+          hard:   {hp: 5, st: 5},   // 困难：连学就得付出代价
+          hell:   {hp: 7, st: 7}    // 地狱：学一次就明显透支
         }
       },
 
@@ -173,9 +223,12 @@
        *   stressMul >1 = 学习更累
        * ============================================================== */
       difficultyTune: {
-        story:  {gainMul: 1.10, decayMul: 0.75, examMul: 1.06, stressMul: 0.70},
+        /* 旧存档兼容：story ≡ easy */
+        story:  {gainMul: 1.25, decayMul: 0.65, examMul: 1.10, stressMul: 0.65},
+        easy:   {gainMul: 1.25, decayMul: 0.65, examMul: 1.10, stressMul: 0.65},
         normal: {gainMul: 1.00, decayMul: 1.00, examMul: 1.00, stressMul: 1.00},
-        hard:   {gainMul: 0.82, decayMul: 1.45, examMul: 0.90, stressMul: 1.35}
+        hard:   {gainMul: 0.82, decayMul: 1.45, examMul: 0.90, stressMul: 1.35},
+        hell:   {gainMul: 0.68, decayMul: 1.75, examMul: 0.84, stressMul: 1.62}
       },
 
       /* ==============================================================
@@ -299,33 +352,72 @@
      * 并跟随存档一起保存 —— 读档后沿用同一套设置。
      * ================================================================== */
 
-    function applyStartSetup(planId, difficulty) {
+    function applyStartSetup(planId, difficulty, realism, createOpts) {
       const plans = GAME_CONFIG.TERM_PLAN || [];
-      const p = plans.find(x => x.id === planId) || plans[0] || {id: "full", from: 0, to: 5, base: 30};
+      /* 旧存档里的 planId（full / from2 / only3 / only1）映射成新的六档 */
+      const legacy = GAME_CONFIG.LEGACY_PLAN_MAP || {};
+      const pid = legacy[planId] || planId;
+      const p = plans.find(x => x.id === pid) || plans[0] || {id: "t0", from: 0, to: 5, base: 30, wu: 10};
       const st = GAME_CONFIG.start || (GAME_CONFIG.start = {});
       st.planId = p.id;
-      st.termFrom = clampNum(p.from, 0, 5);
-      st.termTo = clampNum(Math.max(p.to, p.from), 0, 5);
+      st.termFrom = clampNum(p.from, 0, configTerms() - 1);
+      /* ★ 终点统一初三下 —— 需求 7：每个存档都跑到毕业中考 */
+      st.termTo = configTerms() - 1;
       st.base = clampNum(p.base, 10, 900);
       st.wu = clampNum(p.wu, 10, 150);
-      if (difficulty === "story" || difficulty === "normal" || difficulty === "hard") {
-        st.difficulty = difficulty;
-        GAME_CONFIG.difficulty = difficulty;
-      }
+
+      /* 难度：四档，旧 story 归一成 easy */
+      let d = (difficulty === "story") ? "easy" : difficulty;
+      if (!["easy", "normal", "hard", "hell"].includes(d)) d = "hard";
+      st.difficulty = d;
+      GAME_CONFIG.difficulty = d;
+
+      /* 真实度：三档，默认 real（保持旧版手感） */
+      const r = ["game", "sim", "real"].includes(realism) ? realism : (st.realism || "real");
+      st.realism = r;
+
+      /* 创角页传过来的额外选项（手填生地成绩 / 自选天赋） */
+      if (createOpts && typeof createOpts === "object") st.createOpts = createOpts;
       return st;
     }
 
-    /* 本局在第几个学期结束（中考） */
-    function endTerm() {
-      const st = GAME_CONFIG.start || {};
-      return clampNum(st.termTo, 0, TERMS - 1);
+    /* 当前难度（读档后也准） */
+    function diffKey() {return (GAME_CONFIG.difficulty === "story") ? "easy" : (GAME_CONFIG.difficulty || "hard");}
+
+    /* 是否「简单」档 —— 旧代码里散落的 "story" 判断统一走这里 */
+    function isEasyMode() {return diffKey() === "easy";}
+
+    /* 是否地狱档，以及它的硬规则 */
+    function diffRules() {
+      const all = GAME_CONFIG.DIFFICULTY_RULES || {};
+      return (diffKey() === "hell") ? (all.hell || {}) : {};
     }
+
+    /* 当前真实度：优先读存档里的 S.realism，回退到配置 */
+    function realismMode() {
+      if (typeof S !== "undefined" && S && ["game", "sim", "real"].includes(S.realism)) return S.realism;
+      const r = (GAME_CONFIG.start || {}).realism;
+      return ["game", "sim", "real"].includes(r) ? r : "real";
+    }
+
+    /* 条类（体力 / 文具耐久 / 读书进度）：真实模式只有视觉长度，其余两档给数值 */
+    function barShowsNumber() {return realismMode() !== "real";}
+
+    /* TERMS 定义在 js/09-data-fixed.js（本文件之后加载）。
+     * 这里的函数都是运行时才调用，正常能取到；加个兜底防止早期调用报错。 */
+    function configTerms() {return (typeof TERMS !== "undefined" && isFinite(TERMS)) ? TERMS : 6;}
+
+    /* 本局在第几个学期结束（中考）—— 恒为初三下 */
+    function endTerm() {return configTerms() - 1;}
 
     /* 本局从第几个学期开始 */
     function startTerm() {
       const st = GAME_CONFIG.start || {};
-      return clampNum(st.termFrom, 0, TERMS - 1);
+      return clampNum(st.termFrom, 0, configTerms() - 1);
     }
+
+    /* 起点是否在生地会考之后（需要玩家手填生地成绩） */
+    function startAfterHuiKao() {return startTerm() >= 4;}
 
     /* 是否启用 assets/ 里的实拍配图（false = 只用主题的 CSS 渐变） */
     function photosOn() {

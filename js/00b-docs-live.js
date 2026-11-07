@@ -10,8 +10,8 @@
  *   ① 网络层：用 start-server.bat 起服务时，直接 fetch docs/*.md，改完刷新即生效
  *   ② 兜底层：双击打开时浏览器不让读 .md，就用 js/00-docs.js 里打包好的那份
  *
- * ★ v1.3 起，弹窗里的「导入 / 更新」按钮已去掉 —— 不再从玩家本机的
- *   localStorage 里读文档。以前导入过的内容会在启动时清掉。
+ * ★ v1.5 A 批：本地导入与本地缓存已彻底移除，不再从玩家本机的
+ *   localStorage 里读文档。旧版本遗留的缓存会在启动时清掉。
  *
  * 维护等级：内容层（改文案的同学看这里就够了）
  * ================================================================== */
@@ -24,7 +24,6 @@
 
     const DOCS_CACHE_KEY = "htzx_docs_v1";
 
-    /* 极简 Markdown → HTML（和 tools/sync-docs.js 保持同一套规则） */
 
     /* 极简 Markdown → HTML（和 tools/sync-docs.js 保持同一套规则）
      *
@@ -126,29 +125,6 @@
       return out.join("");
     }
 
-    /* ---------------- 本地缓存（localStorage） ---------------- */
-
-    function docsCache() {
-      try {return JSON.parse(localStorage.getItem(DOCS_CACHE_KEY)) || {};} catch (e) {return {};}
-    }
-
-    function docsCacheSet(key, md) {
-      try {
-        const c = docsCache();
-        c[key] = {md: md, at: new Date().toLocaleString()};
-        localStorage.setItem(DOCS_CACHE_KEY, JSON.stringify(c));
-        return true;
-      } catch (e) {return false;}
-    }
-
-    function docsCacheClear(key) {
-      try {
-        const c = docsCache();
-        if (key) delete c[key]; else c = {};
-        localStorage.setItem(DOCS_CACHE_KEY, JSON.stringify(key ? c : {}));
-      } catch (e) { }
-    }
-
     /* ---------------- 取一份文档的正文 ---------------- */
 
     async function fetchDocMd(key) {
@@ -168,20 +144,13 @@
     async function openDocLive(key) {
       const d = LIVE_DOCS.find(x => x.key === key);
       if (!d) {if (typeof toast === "function") toast(L("doc.missing")); return;}
-
-      let md = null, from = "";
-      /* v1.3：本地导入已停用 —— 不再读 localStorage 里以前导入的内容 */
-
-      const net = await fetchDocMd(key);
-      if (net) {md = net; from = "net";}
-
+      const md = await fetchDocMd(key);
       if (!md && typeof GAME_DOCS !== "undefined" && GAME_DOCS[key]) {
-        // 兜底：用 sync-docs 生成的那份
         renderDocModal(key, d.title, GAME_DOCS[key].html, "builtin");
         return;
       }
       if (!md) {if (typeof toast === "function") toast(L("doc.missing")); return;}
-      renderDocModal(key, d.title, mdToHtml(md), from);
+      renderDocModal(key, d.title, mdToHtml(md), "net");
     }
 
     function renderDocModal(key, title, html, from) {
@@ -195,75 +164,15 @@
     }
 
     /* ==================================================================
-     * 导入：选文件 或 粘贴
+     * v1.5 A 批 · 本地导入与缓存已彻底移除
      * ------------------------------------------------------------------
-     * 双击 index.html 时这是唯一的实时更新方式 ——
-     * 选一个 .md 文件（FileReader 读本地文件是允许的，不受 CORS 限制），
-     * 内容立刻渲染并存进 localStorage，下次打开还在。
-     * ================================================================== */
-
-    /* ==================================================================
-     * 本地导入（v1.3 起停用）
-     * ------------------------------------------------------------------
-     * 弹窗里的「导入 / 更新」按钮已经去掉。三份文档现在只认
-     * 打包进 js/00-docs.js 的那一份：改完 docs/*.md 跑一下
-     * node tools/sync-docs.js 重新生成即可。
-     *
-     * 下面这些函数保留着没删，将来要恢复，把 renderDocModal 里的
-     * 那一行按钮加回来就行。
-     *
-     * 启动时会清掉以前导入过、还留在 localStorage 里的旧内容，
-     * 免得它一直盖住新版文档。
+     * 维护者明确要求「把所有本地导入关掉」。现在只剩两层：
+     *   ① 起本地服务（start-server.bat）→ fetch docs/*.md，改完刷新即生效
+     *   ② 双击 index.html → 用 js/00-docs.js 里打包好的那份
+     * 保留 dropDocCache() 只为清掉旧版本遗留在 localStorage 的缓存，
+     * 免得它一直盖住新文档。需要恢复导入见 git 历史。
      * ============================================================ */
     function dropDocCache() {
       try {localStorage.removeItem(DOCS_CACHE_KEY);} catch (e) { }
     }
     dropDocCache();
-
-    function openDocImport(key) {
-      const d = LIVE_DOCS.find(x => x.key === key);
-      if (!d) return;
-      const has = !!(docsCache()[key] && docsCache()[key].md);
-
-      showModal(L("doc.importTitle", d.title),
-        `<div style="line-height:1.6">
-          <div style="color:var(--dim);font-size:.85rem">${L("doc.importTip", d.file)}</div>
-          <div style="margin:8px 0">
-            <input type="file" id="docFile" accept=".md,.txt"
-              style="font-size:.82rem;color:var(--txt)">
-          </div>
-          <div style="color:var(--dim);font-size:.8rem">${L("doc.importOr")}</div>
-          <textarea id="docPaste" rows="7" placeholder="${L("doc.importPh")}"
-            style="width:100%;margin-top:6px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--txt);font-size:.86rem;line-height:1.5"></textarea>
-        </div>`,
-        [
-          {t: L("doc.doImport"), fn: () => doDocImport(key)},
-          has ? {t: L("doc.clearCache"), fn: () => {docsCacheClear(key); toast(L("doc.cleared")); openDocLive(key);}} : null,
-          {t: L("modal.cancel"), fn: () => { }}
-        ].filter(Boolean), null, false, true, {kind: "free"});
-    }
-
-    function doDocImport(key) {
-      const fileEl = document.getElementById("docFile");
-      const ta = document.getElementById("docPaste");
-      const paste = ta ? (ta.value || "").trim() : "";
-
-      const finish = md => {
-        if (!md || !md.trim()) {if (typeof toast === "function") toast(L("doc.empty")); return;}
-        docsCacheSet(key, md);
-        toast(L("doc.imported"));
-        openDocLive(key);
-      };
-
-      if (paste) {finish(paste); return;}
-
-      if (fileEl && fileEl.files && fileEl.files[0]) {
-        const f = fileEl.files[0];
-        const fr = new FileReader();
-        fr.onload = () => finish(String(fr.result || ""));
-        fr.onerror = () => {if (typeof toast === "function") toast(L("doc.readFail"));};
-        fr.readAsText(f, "utf-8");
-        return;
-      }
-      if (typeof toast === "function") toast(L("doc.empty"));
-    }

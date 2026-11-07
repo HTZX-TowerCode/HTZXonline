@@ -710,3 +710,219 @@
         padding: 6px 10px
       }
     }
+
+/* ==================================================================
+ * 消息栏（开发者 ↔ 玩家）
+ * ------------------------------------------------------------------
+ * 主菜单「消息」按钮右上角一枚未读角标；点开是邮件式列表，
+ * 未读条目左侧有实心点、右侧标「未读」。
+ *
+ * 数据全在 js/00c-messages.js 顶部的 MESSAGES 数组里。
+ * ================================================================== */
+
+.msg-btn {position: relative}
+
+.msg-badge {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--red, #ff8098);
+  color: #1a0c12;
+  font-size: .68rem;
+  font-weight: bold;
+  line-height: 17px;
+  text-align: center;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, .3);
+  pointer-events: none
+}
+
+.msglist {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 2px 0 10px
+}
+
+.msg-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  font-family: inherit;
+  text-align: left;
+  color: var(--txt);
+  background: rgba(255, 255, 255, .045);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background .18s ease, border-color .18s ease, transform .18s ease
+}
+
+.msg-item:hover {
+  background: rgba(255, 255, 255, .11);
+  border-color: rgb(var(--glow2, 192, 138, 232));
+  transform: translateX(2px)
+}
+
+.msg-item.unread {background: rgba(255, 255, 255, .09)}
+
+.msg-dot {
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--line)
+}
+
+.msg-item.unread .msg-dot {
+  background: var(--gold);
+  border-color: var(--gold);
+  box-shadow: 0 0 7px var(--gold)
+}
+
+.msg-main {display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0}
+.msg-main b {font-size: .95rem; font-weight: 600}
+.msg-main small {font-size: .76rem; color: var(--dim)}
+.msg-new {color: var(--gold); font-weight: 600}
+.msg-arrow {font-size: 1.3rem; color: var(--dim); line-height: 1}
+.msg-empty {padding: 22px; text-align: center; color: var(--dim); font-size: .88rem}
+.msgfoot {font-size: .76rem; color: var(--dim); text-align: right}
+
+.msg-detail .msg-meta {
+  font-size: .78rem;
+  color: var(--dim);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 10px
+}
+
+.msg-detail p {margin: 0 0 9px; line-height: 1.75}
+
+
+/* ==================================================================
+ * v1.4 C 批 · 体力条 / 事事有回应 / 考试家庭反馈
+ * ================================================================== */
+
+/* 顶栏那一格：⚡ 体力 [====----] 72/100 */
+#actPill {display: inline-flex; align-items: center; gap: 6px}
+.stambar {
+  display: inline-block; width: 74px; height: 8px; border-radius: 99px;
+  background: rgba(255, 255, 255, .13); overflow: hidden; vertical-align: middle
+}
+.stambar > i {
+  display: block; height: 100%; border-radius: 99px;
+  background: linear-gradient(90deg, rgb(var(--glow, 156, 77, 204)), var(--blue, #5aa9e6));
+  transition: width .28s ease
+}
+.stambar.stam-low > i {background: linear-gradient(90deg, #b4553f, var(--red, #d05a5a))}
+#actPill b {font-size: .82rem; color: var(--txt)}
+
+/* 按钮上的「体力 −N」小标签 */
+.stamtag {
+  display: inline-block; margin-left: 4px; padding: 0 5px;
+  border-radius: 5px; font-size: .68rem; line-height: 1.5;
+  color: var(--dim); background: rgba(255, 255, 255, .07);
+  border: 1px solid var(--line); white-space: nowrap
+}
+.stamtag.free {color: var(--green, #7ec98a); border-style: dashed}
+.stam-hint {color: var(--dim); font-size: .78rem; margin-left: 4px}
+
+/* 「进入下一周」按钮：和行动格拉开一点，别混在一起 */
+.endweek-btn {
+  grid-column: 1 / -1; margin-top: 10px;
+  border-color: rgb(var(--glow, 156, 77, 204)) !important;
+  background: rgba(255, 255, 255, .04) !important
+}
+.endweek-btn small {display: block; color: var(--dim); font-size: .72rem; margin-top: 2px}
+
+/* 反馈弹窗：解锁 / 经过 / 状态变化 三块 */
+.fb-wrap {display: flex; flex-direction: column; gap: 10px; line-height: 1.62}
+.fb-block {padding: 8px 10px; border-radius: 9px; background: rgba(255, 255, 255, .045); border: 1px solid var(--line)}
+.fb-h {font-size: .76rem; color: var(--dim); letter-spacing: .08em; margin-bottom: 5px}
+.fb-line {margin: 2px 0; font-size: .9rem}
+.fb-line.good {color: var(--green)} .fb-line.bad {color: var(--red)}
+.fb-line.talent, .fb-line.ach {color: var(--gold)}
+.fb-unlock {
+  margin: 3px 0; padding: 5px 8px; border-radius: 7px; font-size: .9rem;
+  border-left: 3px solid var(--gold, #d9b45b); background: rgba(217, 180, 91, .09)
+}
+.fb-unlock.ach {border-left-color: var(--blue, #5aa9e6); background: rgba(90, 169, 230, .09)}
+.fb-chips {display: flex; flex-wrap: wrap; gap: 5px}
+.fb-chip {
+  font-size: .8rem; padding: 2px 8px; border-radius: 99px;
+  border: 1px solid var(--line); background: rgba(255, 255, 255, .05)
+}
+.fb-chip.good {color: var(--green); border-color: rgba(126, 201, 138, .45)}
+.fb-chip.bad {color: var(--red); border-color: rgba(208, 90, 90, .45)}
+.fb-chip.stam {color: var(--dim); border-style: dashed}
+
+/* 成绩单底部：爸妈看了成绩单 */
+.exam-family {
+  margin-top: 10px; padding: 9px 11px; border-radius: 9px;
+  border-left: 3px solid var(--gold, #d9b45b);
+  background: rgba(217, 180, 91, .08); line-height: 1.65; font-size: .9rem
+}
+
+/* ==================================================================
+ * v1.4 C 批第 2 小批 · 做题配置 / 周末时间表
+ * ================================================================== */
+.quizcfg .qcfg-label {font-size: .78rem; color: var(--dim); letter-spacing: .06em; margin: 9px 0 5px}
+.qcfg-row {display: flex; flex-wrap: wrap; gap: 6px}
+.qcfg-row .namechip {font-size: .86rem}
+
+.wk-wrap {display: flex; flex-direction: column; gap: 7px}
+.wk-row {
+  display: grid; grid-template-columns: minmax(120px, 38%) 1fr; gap: 9px;
+  align-items: center; padding: 7px 9px; border-radius: 9px;
+  background: rgba(255, 255, 255, .04); border: 1px solid var(--line)
+}
+.wk-slot {font-size: .88rem; line-height: 1.5}
+.wk-slot small {font-size: .74rem}
+.wk-pick {min-width: 0}
+.wk-settle {
+  margin-top: 11px; padding: 10px 12px; border-radius: 10px;
+  background: rgba(255, 255, 255, .045); border: 1px solid var(--line);
+  line-height: 1.65; font-size: .88rem
+}
+.wk-settle .fb-h {margin-bottom: 4px}
+.wk-settle details summary {list-style: none}
+.wk-settle details summary::-webkit-details-marker {display: none}
+.wk-settle details summary::before {content: "▸ "; color: var(--dim)}
+.wk-settle details[open] summary::before {content: "▾ "}
+.wk-line {margin: 3px 0; font-size: .84rem}
+.wk-line.skip {color: var(--dim)}
+
+/* ==================================================================
+ * v1.4.1 · 文具门禁：按钮被禁用时把原因写在按钮里
+ * ------------------------------------------------------------------
+ * 以前只放 title（鼠标悬停才看得到），手机上等于没有提示。
+ * disabled 按钮里的 <small> 照样渲染，所以直接写进去。
+ * ================================================================== */
+.gate-note {
+  display: block;
+  margin-top: 3px;
+  font-size: .7rem;
+  line-height: 1.4;
+  color: var(--gold-soft);
+  white-space: normal;
+  text-align: center
+}
+.btn:disabled .gate-note {opacity: .9}
+
+/* v1.4.1 · 文具门禁横幅：写在行动面板标题下，不依赖 hover */
+.gate-banner {
+  margin: 6px 2px 2px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--gold);
+  background: rgba(255, 200, 90, .10);
+  color: var(--gold-soft);
+  font-size: .78rem;
+  line-height: 1.55
+}

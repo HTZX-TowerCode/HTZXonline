@@ -22,6 +22,10 @@
        * 加上这一句，任何在本周达成条件的成就都会在本周结束时就解锁，
        * 不会拖到下一周的第一次行动才跳出来。 */
       if (typeof checkAch === "function") checkAch();
+      /* v1.4 D 批：每周结算文具（学习数值 / 装饰收益 / 散落丢失 /
+       * 借书到期 / 借出的书归还）。tickWeek 保证一周只跑一次，
+       * 收周弹窗里已跑过就不会重复。 */
+      if (typeof bagWeeklyTick === "function") bagWeeklyTick();
       /* 周存档点：这一周的所有结算（属性、天赋、成就、破茧/退化、
        * 压力连击、家庭矛盾）都走完之后，才把「下周开始」的状态写进存档。
        * 读档回来正好回到新周的开端，不会丢任何已结算的内容。 */
@@ -51,6 +55,28 @@
         S.evCntWeek = {};
         S.actCount = 0;
         S.actQuota = 0;
+        /* v1.5 C 批：长链深度每周从头算；队列若因读档残留也一并清掉，
+         * 免得上周的剧情半截蹦到这周来。 */
+        S.chainDepth = 0;
+        if (num(S.chainWeek, -1) !== num(S.week, 0)) {
+          S.chainQueue = [];
+          S.chainWeek = num(S.week, 0);
+        }
+        /* 读旧存档（v8 及以前没有 S.bag）时补齐文具袋结构 */
+        if (typeof bagEnsure === "function") bagEnsure();
+        /* ★ v1.4 体力池（需求 8）：只在「新的一周」把体力补满。
+         * 用 S.stamWeek 记周号，读档回到同一周时保留剩余体力 ——
+         * 否则每读一次档就白送一次满体力。 */
+        if (num(S.stamWeek, -1) !== num(S.week, 0)) {
+          S.stam = (typeof staminaMax === "function") ? staminaMax() : 100;
+          S.stamWeek = num(S.week, 0);
+        }
+        if (S.stam == null) S.stam = (typeof staminaMax === "function") ? staminaMax() : 100;
+        /* 要零花钱的每周次数：换周清零（亲情 <100 一周 1 次，≥100 一周 2 次） */
+        S.allowCount = (num(S.allowWeek, -1) === num(S.week, 0)) ? num(S.allowCount, 0) : 0;
+        S.allowWeek = num(S.week, 0);
+        /* 周末时间表：带入上次安排（需求 12） */
+        if (typeof weekendEnsure === "function") weekendEnsure();
         flushPending();              // 清掉过期的后续事件
         // 生成本周的时段序列（周中 → 周末，顺序固定；数量可动态增减）
         S.slotPlan = buildWeekSlots();
@@ -73,8 +99,11 @@
       /* 周头：S.week 内部从 0 起，玩家看到的是第 1~120 周 */
       say(L("flow.weekHead", num(S.week, 0) + 1, gradeName(), termName(), wi.month, wi.seasonIcon, wi.season), "week-head");
       const fixed = fixedEventOf(S.term, wit);
-      if (fixed) runFixed(fixed);
-      else offerActions();
+      const goWeek = () => {if (fixed) runFixed(fixed); else offerActions();};
+      /* v1.5 C 批：心事状态变化的说明窗优先于本周日程。
+       * romanceNotice 返回 true 时由它自己接住后续流程（点确认再走）。 */
+      if (typeof romanceNotice === "function" && romanceNotice(goWeek)) return;
+      goWeek();
     }
 
     /* 是否需要抢社团
@@ -131,18 +160,70 @@
       ];
 
       const box = document.getElementById("actionPanel");
-      const doneN = num(S.actCount, 0), allN = num(S.actQuota, 1);
       const slot = SLOT_MAP[S.slot] || SLOTS[0];
-      box.innerHTML = `<div class='tag-title'>${slot.icon} ${slotName(slot)} · ${allN > 1 ? L("act.titleN", doneN + 1, allN) : L("act.title")}</div>`;
+      /* v1.4 地狱难度：心态过低时，学习类行动不可用（先把自己稳住） */
+      const rules = (typeof diffRules === "function") ? diffRules() : {};
+      const mindLocked = !!(rules.mindLock && S.prop.心态 < rules.mindLock);
+      const head = mindLocked
+        ? `<span style="color:var(--red);font-size:.76rem"> · 心态过低，学习类行动暂不可用</span>` : "";
+      /* ★ 体力池：标题不再写「第几次/共几次」，改提示剩余体力 */
+      const left = (typeof staminaLeft === "function") ? staminaLeft() : 0;
+      const mx = (typeof staminaMax === "function") ? staminaMax() : 100;
+      /* ★ v1.4.1：笔报废时给一条常驻横幅，把「学习 / 做题 / 读书做不了」
+       * 明说出来 —— 按钮被禁用只靠 title 提示，手机上等于没有。 */
+      const gateBanner = (typeof bagRequireWrite === "function" && !bagRequireWrite())
+        ? `<div class="gate-banner">✏️ 没有能写字的笔了 —— 学习、做题、读书暂时做不了，去小卖部买一支（铅笔要配橡皮）</div>`
+        : "";
+      box.innerHTML = `<div class='tag-title'>${slot.icon} ${slotName(slot)} · ${L("act.title")}
+        <span class="stam-hint">⏳ ${left}/${mx}</span>${head}</div>${gateBanner}`;
       const grid = document.createElement("div");
       grid.className = "actgrid";
+      const LEARN_ACTS = ["study", "quiz", "read"];
+
+      /* 要零花钱：不耗体力，但亲情 <100 每周 1 次、≥100 每周最多 2 次。
+       * 次数用完后这个选项直接消失（需求 10）。 */
+      const fam = num(S.prop.亲情, 80);
+      const allowMax = fam >= 100 ? 2 : 1;
+      const allowLeft = allowMax - num(S.allowCount, 0);
+
       acts.forEach(a => {
+        if (a.k === "allowance" && allowLeft <= 0) return;
+        const cost = (typeof actStamCost === "function") ? actStamCost(a.k) : 10;
+        const afford = (typeof canAfford === "function") ? canAfford(cost) : true;
         const b = document.createElement("button"); b.className = "btn";
-        b.innerHTML = `<b>${a.t}</b>`;
+        b.innerHTML = `<b>${a.t}</b>${(typeof stamLabel === "function") ? stamLabel(cost) : ""}`;
         b.dataset.actKey = "act." + a.k;      // 记住文案键，切语言时原地改字
+        if (mindLocked && LEARN_ACTS.indexOf(a.k) >= 0) {
+          b.disabled = true;
+          b.title = `心态低于 ${rules.mindLock}，先休息一下`;
+        } else if (!afford) {
+          b.disabled = true;
+          b.title = `时间不足（需要 ${cost}，剩余 ${left}）`;
+        } else if (typeof bagGate === "function" && bagGate(a.k)) {
+          /* v1.4 D 批（需求 13）：没有能写字的笔，学习/做题/读书不可选。
+           * ★ v1.4.1：title 只有鼠标悬停才看得到，手机上等于没提示。
+           *   把原因直接写在按钮里，玩家一眼就知道为什么灰了。 */
+          b.disabled = true;
+          b.title = bagGate(a.k);
+          b.innerHTML += `<small class="gate-note">⚠️ 笔用完了，去小卖部买一支</small>`;
+        }
         b.onclick = () => takeAction(a.k); grid.appendChild(b);
       });
       box.appendChild(grid);
+
+      /* 🗓️ 周末时间表：自由操作，不耗体力、不占行动 */
+      const wkBtn = document.createElement("button");
+      wkBtn.className = "btn";
+      wkBtn.innerHTML = `<b>🗓️ 周末时间表</b><span class="stamtag free">自由操作</span>`;
+      wkBtn.onclick = () => {if (typeof openWeekend === "function") openWeekend();};
+      box.appendChild(wkBtn);
+
+      /* ★ 进入下一周：玩家随时可以收手，没用完的体力折算成健康 */
+      const endBtn = document.createElement("button");
+      endBtn.className = "btn endweek-btn";
+      endBtn.innerHTML = `<b>➡️ 进入下一周</b><small>剩余 ${left} 点时间会折算成健康</small>`;
+      endBtn.onclick = () => {if (typeof finishWeekWithStamina === "function") finishWeekWithStamina(true);};
+      box.appendChild(endBtn);
       // 道具不在这里重复列出 —— 用道具请点顶部「🎒 道具」按钮
       renderHUD();
     }
@@ -159,56 +240,52 @@
       const grid = document.createElement("div");
       grid.className = "actgrid";
 
-      const mk = (t, sub, fn, key, subKey) => {
+      const mk = (t, sub, fn, key, subKey, actK) => {
         const b = document.createElement("button");
         b.className = "btn";
-        b.innerHTML = sub ? `<b>${t}</b><br><small>${sub}</small>` : `<b>${t}</b>`;
+        const cost = (typeof actStamCost === "function") ? actStamCost(actK || "club") : 20;
+        const tag = (typeof stamLabel === "function") ? stamLabel(cost) : "";
+        b.innerHTML = `<b>${t}</b>${sub ? `<br><small>${sub}</small>` : ""}${(sub ? "<br>" : "") + tag}`;
         if (key) b.dataset.actKey = key;
         if (subKey) b.dataset.actSubKey = subKey;
+        if (typeof canAfford === "function" && !canAfford(cost)) {
+          b.disabled = true; b.title = "时间不足";
+        } else if (typeof bagGate === "function" && bagGate(actK || "club")) {
+          /* 「不去社团」实际是回教室自习（study），笔没了也不能学 */
+          b.disabled = true;
+          b.title = bagGate(actK || "club");
+          b.innerHTML += `<small class="gate-note">⚠️ 笔用完了，去小卖部买一支</small>`;
+        }
         b.onclick = fn;
         grid.appendChild(b);
       };
 
-      mk(`${c ? c.icon : "🎪"} ${L("act.club")}`, c ? TZ(c.n) : "", () => takeAction("club"), "act.club");
+      mk(`${c ? c.icon : "🎪"} ${L("act.club")}`, c ? TZ(c.n) : "", () => takeAction("club"), "act.club", null, "club");
       /* ★ v1.3：选了「不去社团」，本周就不该再有社团里的任何活动。
        * 以前这里只是走一次普通学习，但通用事件池里仍然可能抽到
        * cond 为「已加入该社团」的社团事件 —— 人没去，故事却发生在社团教室里。
        * 打上 S.clubOff 标记，事件抽取时直接跳过所有 cl_ 开头的事件。 */
-      mk(L("act.clubSkip"), L("act.clubSub"), () => {S.clubOff = true; takeAction("study");}, "act.clubSkip", "act.clubSub");
-      mk(L("act.clubRest"), L("act.restSub"), () => {S.clubOff = true; takeAction("rest");}, "act.clubRest", "act.restSub");
-      mk(L("act.clubSocial"), L("act.socialSub"), () => {S.clubOff = true; takeAction("social");}, "act.clubSocial", "act.socialSub");
+      mk(L("act.clubSkip"), L("act.clubSub"), () => {S.clubOff = true; takeAction("study");}, "act.clubSkip", "act.clubSub", "study");
+      mk(L("act.clubRest"), L("act.restSub"), () => {S.clubOff = true; takeAction("rest");}, "act.clubRest", "act.restSub", "rest");
+      mk(L("act.clubSocial"), L("act.socialSub"), () => {S.clubOff = true; takeAction("social");}, "act.clubSocial", "act.socialSub", "social");
 
       box.appendChild(grid);
+      const wkBtn = document.createElement("button");
+      wkBtn.className = "btn";
+      wkBtn.innerHTML = `<b>🗓️ 周末时间表</b><span class="stamtag free">自由操作</span>`;
+      wkBtn.onclick = () => {if (typeof openWeekend === "function") openWeekend();};
+      box.appendChild(wkBtn);
+      const endBtn = document.createElement("button");
+      endBtn.className = "btn endweek-btn";
+      endBtn.innerHTML = `<b>➡️ 进入下一周</b><small>剩余 ${(typeof staminaLeft === "function") ? staminaLeft() : 0} 点时间折算成健康</small>`;
+      endBtn.onclick = () => {if (typeof finishWeekWithStamina === "function") finishWeekWithStamina(true);};
+      box.appendChild(endBtn);
       renderHUD();
     }
 
     /* 切换语言后，把行动按钮上的字原地换成新语言
      * （不能重新 offerActions —— 那会重置本周的行动进度） */
 
-    function relabelActions() {
-      const box = document.getElementById("actionPanel");
-      if (!box) return;
-      box.querySelectorAll("button[data-act-key]").forEach(b => {
-        const key = b.dataset.actKey;
-        const subKey = b.dataset.actSubKey;
-        const icon = (b.textContent.match(/^[^\u4e00-\u9fa5A-Za-z]*/) || [""])[0];
-        const t = L(key);
-        if (subKey) {
-          const small = b.querySelector("small");
-          const clubName = small ? small.textContent : "";
-          b.innerHTML = `<b>${t}</b><br><small>${L(subKey) || clubName}</small>`;
-        } else {
-          b.innerHTML = `<b>${t}</b>`;
-        }
-      });
-      // 标题行（含时段名与进度）整体重刷一次
-      const tag = box.querySelector(".tag-title");
-      if (tag && typeof slotName === "function") {
-        const slot = SLOT_MAP[S.slot] || SLOTS[0];
-        const allN = num(S.actQuota, 1), doneN = num(S.actCount, 0);
-        tag.innerHTML = `${slot.icon} ${slotName(slot)} · ${allN > 1 ? L("act.titleN", doneN + 1, allN) : L("act.title")}`;
-      }
-    }
 
     /* 本周可以选几次行动（按学期取配置） */
 
@@ -231,15 +308,40 @@
       return S.slotIdx < S.slotPlan.length - 1 || S.actCount < S.actQuota;
     }
 
-    /* 当前时段是否已走完（用于判断是否进入下一个时段） */
-    function slotDone() {
-      if (!Array.isArray(S.slotPlan) || !S.slotPlan.length) return true;
-      return (S.slotIdx + 1) > (S.actCount || 0);
-    }
 
     /* 一次「本周行动」：结算 → 1 个事件弹窗 → 可能连锁 1~2 个 → 收尾 */
 
     function takeAction(k) {
+      /* 兜底：万一周三社团课 / 节假日等别的入口也调用了学习类行动 */
+      const rules0 = (typeof diffRules === "function") ? diffRules() : {};
+      if (rules0.mindLock && ["study", "quiz", "read"].indexOf(k) >= 0 && S.prop.心态 < rules0.mindLock) {
+        toast(`心态低于 ${rules0.mindLock}，先休息一下`);
+        offerActions();
+        return;
+      }
+      /* ★ 文具门禁兜底（v1.4.1）：社团课的「不去社团」、周末安排、
+       * 事件指令等入口会直接调 takeAction("study")，不走上面那段
+       * 按钮禁用逻辑。以前笔没了照样能学，等于门禁形同虚设。
+       * 必须在扣时间之前拦住，且要给玩家看得见的提示。 */
+      if (typeof bagGateNotice === "function" && bagGateNotice(k)) return;
+
+      /* ★ 时间池（需求 8）：付不起就不让做。
+       * 「做题」特殊 —— 题数要等配置弹窗里选好才知道花多少，
+       * 所以由 openQuiz() 在确认后扣，这里先不预扣。 */
+      if (k !== "quiz" && typeof canAfford === "function") {
+        const cost = actStamCost(k);
+        if (!canAfford(cost)) {
+          toast(`时间不够了（需要 ${cost}，还剩 ${staminaLeft()}）`);
+          offerActions();
+          return;
+        }
+        spendStamina(cost, k);
+      }
+      /* 要零花钱不耗体力，但占本周的次数额度 */
+      if (k === "allowance") {
+        S.allowWeek = num(S.week, 0);
+        S.allowCount = num(S.allowCount, 0) + 1;
+      }
       document.getElementById("actionPanel").innerHTML = "";
       if (k === "read") {openBookCorner(() => afterAction(k)); return;}
       // 「做题」：先弹一道题，答完才算这一周的行动结算完毕
@@ -328,15 +430,26 @@
     function afterAction(k) {
       const cont = () => {
         if (S.over) return;
-        if ((S.actCount || 0) < (S.actQuota || 1)) {
-          advanceSlot();               // 周中做完 → 进入周末
+        /* ★ 体力池：还付得起「最便宜的一件事」就继续留在本周，
+         * 玩家自己决定何时收手；体力见底则自动收周（剩余折健康）。 */
+        if (typeof staminaLeft === "function" && (
+            (staminaLeft() > 0 && canAfford(cheapestActionCost())) ||
+            (typeof allowanceAvailable === "function" && allowanceAvailable()))) {
+          advanceSlot();               // 周中做完 → 进入周末（仍按时段轮转）
           offerActions();
+        } else if (typeof finishWeekWithStamina === "function") {
+          finishWeekWithStamina(false);
         } else afterWeek();
       };
-      // 先消负面天赋（破茧），再检查有没有正面天赋因为久不练习而退化
+      /* 顺序：破茧（消负面）→ 蜕变（正面升级）→ 退化（久不练习失去）。
+       * 三者都可能弹窗，一次只弹一个，弹完才轮到下一个。 */
       flushCure(() => {
-        if (typeof flushDecay === "function") flushDecay(cont);
-        else cont();
+        const afterEvolve = () => {
+          if (typeof flushDecay === "function") flushDecay(cont);
+          else cont();
+        };
+        if (typeof flushEvolve === "function") flushEvolve(afterEvolve);
+        else afterEvolve();
       });
     }
 
@@ -348,20 +461,45 @@
       let fired = 0;
       const step = () => {
         if (S.over) return done();
-        if ((S.evWeekTotal || 0) >= GAME_CONFIG.maxEventsPerWeek) return done();
-        const maxHere = Math.max(1, GAME_CONFIG.eventsPerAction) + Math.max(0, GAME_CONFIG.maxChainEvents);
-        if (fired >= maxHere) return done();
-        // 保底事件放完后，按概率决定是否连锁
-        if (fired >= Math.max(1, GAME_CONFIG.eventsPerAction)) {
-          const idx = fired - Math.max(1, GAME_CONFIG.eventsPerAction);
-          const p = num(GAME_CONFIG.chainChance[idx], 0);
-          if (Math.random() >= p) return done();
+        /* ================================================================
+         * v1.5 C 批 · 剧情长链（需求 4）
+         * ----------------------------------------------------------------
+         * 以前「排队后续事件」和随机事件共用 maxEventsPerWeek=3 的配额，
+         * 结果 6 层链最多只能走 3 层就被截掉，后面几层永远见不到。
+         *
+         * 现在：只要 S.chainQueue 里还有后续，就走【独立通道】
+         *   · 不占随机事件配额、不参与连锁概率
+         *   · 用 S.chainDepth 计深度，上限 GAME_CONFIG.epicMaxDepth（6）
+         *   · 链一断（队列空了）立刻把深度清零，下一条链从头算
+         * ================================================================ */
+        const queued = Array.isArray(S.chainQueue) && S.chainQueue.length > 0;
+        const depthMax = Math.max(1, num(GAME_CONFIG.epicMaxDepth, 6));
+        if (queued) {
+          if (num(S.chainDepth, 0) >= depthMax) {
+            S.chainQueue.length = 0;
+            S.chainDepth = 0;
+            return done();
+          }
+        } else {
+          S.chainDepth = 0;
+          if ((S.evWeekTotal || 0) >= GAME_CONFIG.maxEventsPerWeek) return done();
+          const maxHere = Math.max(1, GAME_CONFIG.eventsPerAction) + Math.max(0, GAME_CONFIG.maxChainEvents);
+          if (fired >= maxHere) return done();
+          // 保底事件放完后，按概率决定是否连锁
+          if (fired >= Math.max(1, GAME_CONFIG.eventsPerAction)) {
+            const idx = fired - Math.max(1, GAME_CONFIG.eventsPerAction);
+            const p = num(GAME_CONFIG.chainChance[idx], 0);
+            if (Math.random() >= p) return done();
+          }
         }
         const def = buildEventDef();          // 现场挑选（能感知上一条事件带来的变化）
         if (!def) return done();              // 没有可用事件，直接收尾
         fired++;
-        S.evCountWeek = (S.evCountWeek || 0) + 1;
-        S.evWeekTotal = (S.evWeekTotal || 0) + 1;
+        if (queued) S.chainDepth = num(S.chainDepth, 0) + 1;
+        else {
+          S.evCountWeek = (S.evCountWeek || 0) + 1;
+          S.evWeekTotal = (S.evWeekTotal || 0) + 1;
+        }
         renderHUD();
         showPopup(def, () => showEventResult(step));
       };
@@ -408,6 +546,30 @@
       if (e.maxTimes != null && n >= e.maxTimes) return false;
       if (e.minTerm != null && clampNum(S.term, 0, 9) < e.minTerm) return false;
       if (e.maxTerm != null && clampNum(S.term, 0, 9) > e.maxTerm) return false;
+
+      /* ================================================================
+       * v1.5 B 批 · 天赋对事件发生条件的影响（需求 3 / 诊断 §7）
+       * ----------------------------------------------------------------
+       * 以前事件只能靠 cond 看属性 / 社团 / 计数，天赋完全不参与抽选。
+       * 现在内容作者可以直接在数据里写：
+       *   needTalent: "过目不忘"        有这个天赋才会出现
+       *   needTalent: ["晨型人","晨读书声"]  任意一个即可
+       *   noTalent:   "社恐"           有这个天赋就绝不出现
+       *   noTalent:   ["高冷","社恐"]  任意一个命中就屏蔽
+       * 两者可同时写；needTalentAny:false 时改成「全部都要」。
+       *
+       * ★ 只影响「会不会抽到」，不影响选项数值 —— 数值表保持单一来源。
+       * ★ cond 仍然生效，天赋 gate 是它之前的一层快速过滤。
+       * ================================================================ */
+      if (typeof Talent !== "undefined" && (e.needTalent || e.noTalent)) {
+        const list = v => Array.isArray(v) ? v : (v ? [v] : []);
+        const need = list(e.needTalent), no = list(e.noTalent);
+        if (no.some(t => Talent.have(t))) return false;
+        if (need.length) {
+          const hit = e.needTalentAny === false ? need.every(t => Talent.have(t)) : need.some(t => Talent.have(t));
+          if (!hit) return false;
+        }
+      }
 
       // 时段：周中住校的事不会跑到周末去，反之亦然
       // slot 可以写成单个 "weekday"，也可以写成数组 ["weekday","clubday"]
@@ -468,15 +630,36 @@
         const d = (e.decay != null) ? e.decay : num(cfg.decay, 0.5);
         const fl = (e.decayFloor != null) ? e.decayFloor : num(cfg.decayFloor, 0.15);
         w = w0 * Math.max(fl, Math.pow(clampNum(d, 0, 1, 0.5), n));
-      } else if (mode === "front") {
-        const prog = clampNum(S.week, 0, 150) / 150;
-        w = w0 * clampNum(1.4 - prog * 1.2, 0.15, 1.4);
-      } else if (mode === "back") {
-        const prog = clampNum(S.week, 0, 150) / 150;
-        w = w0 * clampNum(0.3 + prog * 1.3, 0.3, 1.6);
+      } else if (mode === "front" || mode === "back") {
+        /* v1.5 B 批：以前写死 /150（三年 150 周的旧校历），
+         * 现在一学期 20 周共 120 周，front/back 曲线要按本局真实长度算。 */
+        const total = Math.max(1, num(GAME_CONFIG.totalWeeks,
+          (typeof WEEKS_PER_TERM !== "undefined" && typeof TERMS !== "undefined") ? WEEKS_PER_TERM * TERMS : 120));
+        const prog = clampNum(S.week, 0, total) / total;
+        w = w0 * (mode === "front"
+          ? clampNum(1.4 - prog * 1.2, 0.15, 1.4)
+          : clampNum(0.3 + prog * 1.3, 0.3, 1.6));
       }
 
       w *= pendingMult(e.id);      // 被挂起的后续事件，概率临时放大
+      /* ================================================================
+       * v1.5 B 批 · 天赋对事件概率的柔和影响
+       * ----------------------------------------------------------------
+       * needTalent / noTalent 是硬开关（在 eventAllowed 里），适合
+       * 「人设上根本说不通」的场景；talentBoost 是不切断内容链的加权：
+       *   talentBoost: {"过目不忘": 1.7, "书香门第": 1.6}
+       * 有对应天赋时权重乘上倍数，没有也照样能抽到。
+       *
+       * ★ 竞赛选拔 / 图书角这类【成就计数的唯一来源】必须用 talentBoost，
+       *   挂 needTalent 会让没天赋的玩家永远拿不到成就（D 批踩过一次）。
+       * ================================================================ */
+      if (e.talentBoost && typeof Talent !== "undefined") {
+        let mul = 1;
+        for (const t in e.talentBoost) if (Talent.have(t)) mul *= num(e.talentBoost[t], 1);
+        w *= clampNum(mul, 0.2, 6, 1);
+      }
+      /* v1.4 D 批：文具袋散落时，「笔不见了」这类事件更容易出现 */
+      if (typeof bagEventWeightBoost === "function") w += bagEventWeightBoost(e.id);
       return Math.max(0, w);
     }
 
@@ -484,6 +667,11 @@
 
     function execOption(o) {
       resultBase = S.logs.length;
+      /* ★ 不同事件选项消耗不同体力（事件里可写 stam: N，不写用默认值）。
+       * 付不起的选项在 defOf() 里就已经禁用，正常不会走到这里。 */
+      if (typeof spendStamina === "function") {
+        spendStamina(optionStamCost(o), "事件选项");
+      }
       runEffectSpec(o.run, S);
 
       // 条件分支：按顺序判断，命中第一个就执行并停止
@@ -510,7 +698,10 @@
       }
       if (o.next) {
         if (!Array.isArray(S.chainQueue)) S.chainQueue = [];
-        S.chainQueue.push(o.next);       // 排在后面，等本条结束再弹
+        /* v1.5 C 批：next 可以写单个 id，也可以写数组（一层里连着排两段）。
+         * 排队顺序即播放顺序；链深度统一由 runEventChain 计。 */
+        const nx = Array.isArray(o.next) ? o.next : [o.next];
+        nx.filter(Boolean).forEach(id => S.chainQueue.push(id));
       }
       checkAch();
     }
@@ -532,13 +723,19 @@
       // 优先弹「排队等着的后续事件」
       if (Array.isArray(S.chainQueue) && S.chainQueue.length) {
         const id = S.chainQueue.shift();
-        const q = EVENTS.find(e => e.id === id);
+        /* 后续事件也可能在 SCHOOL_EVENTS / SPORT_EVENTS 等子池里，
+         * 不只是 EVENTS —— 长链会跨池引用。 */
+        const all = EVENTS.concat(
+          (typeof SCHOOL_EVENTS !== "undefined") ? SCHOOL_EVENTS : [],
+          (typeof SPORT_EVENTS !== "undefined") ? SPORT_EVENTS : [],
+          (typeof EPIC_EVENTS !== "undefined") ? EPIC_EVENTS : []);
+        let q = all.find(e => e.id === id);
         if (q && (!q.cond || q.cond(S)) && q.opts && q.opts.length) {
           S.evCntWeek[id] = true;
           S.evCnt[id] = (S.evCnt[id] || 0) + 1;
           if (!S.evLastWeek) S.evLastWeek = {};
           S.evLastWeek[id] = num(S.week, 0);
-          return defOf(q, "⚡ 事件 · 后续");
+          return defOf(q, q.epic ? "📖 长链 · 后续" : "⚡ 事件 · 后续");
         }
       }
 
@@ -579,27 +776,28 @@
         img: ev.img,
         badge: badge || "",
         slotNote: slot.icon + slot.name,
-        options: ev.opts.filter(o => true).map(o => ({
-          t: F(o.t), sub: F(o.sub || ""),
-          disabled: !!(o.cond && !o.cond(S)),
-          fn: () => {execOption(o);}
-        }))
+        options: ev.opts.filter(o => true).map(o => {
+          const cost = (typeof optionStamCost === "function") ? optionStamCost(o) : 0;
+          const tag = (typeof stamLabel === "function") ? stamLabel(cost) : "";
+          const sub0 = F(o.sub || "");
+          return {
+            t: F(o.t),
+            sub: (sub0 ? sub0 + "<br>" : "") + tag,
+            disabled: !!(o.cond && !o.cond(S)) ||
+              (typeof canAfford === "function" && !canAfford(cost)),
+            fn: () => {execOption(o);}
+          };
+        })
       };
     }
 
     /* 事件结果：同一个弹窗原地变成结果，玩家点「继续」才进下一个 */
 
     function showEventResult(next) {
-      const logs = S.logs.slice(resultBase);
-      if (GAME_CONFIG.eventResultMode === "log" || !logs.length) {next(); return;}
-      const html = logs.map(l => `<div class="${l.cls || ""}" style="margin:2px 0">${l.txt}</div>`).join("");
-      showPopup({
-        kind: "event",
-        badge: L("ev.resultBadge", clampNum(S.evWeekTotal, 0, 99), GAME_CONFIG.maxEventsPerWeek),
-        title: L("ev.result"),
-        body: `<div style="line-height:1.7">${html}</div>`,
-        options: [{t: L("modal.continue")}]
-      }, next);
+      /* ★ v1.4「事事有回应」（需求 9）：反馈弹窗已由 showModal() 的
+       * 选项出口统一负责 —— 文本、数值变化、解锁天赋/成就合在一个弹窗里。
+       * 这里只负责把控制权交还事件链，不再二次弹窗（否则会连点两次）。 */
+      if (typeof next === "function") next();
     }
 
     /* ==================================================================
@@ -659,13 +857,20 @@
     }
 
     function afterWeek() {
-      if (S.prop.健康 <= 0) {S.dead = "健康"; return gameOver();}
+      /* v1.4：四档难度 + 地狱硬规则（健康 < 10 立即结束） */
+      const dk = (typeof diffKey === "function") ? diffKey() : "hard";
+      const rules = (typeof diffRules === "function") ? diffRules() : {};
+      const easy = (typeof isEasyMode === "function") ? isEasyMode() : false;
+      const brokeNeed = {easy: 12, normal: 8, hard: 5, hell: 3}[dk] || 8;
+
+      if (S.prop.健康 <= 0 || (rules.hpEnd && S.prop.健康 < rules.hpEnd)) {S.dead = "健康"; return gameOver();}
       if (S.prop.心态 <= 0) {S.dead = "心态"; return gameOver();}
-      const brokeNeed = GAME_CONFIG.difficulty === "hard" ? 5 : (GAME_CONFIG.difficulty === "story" ? 12 : 8);
       if (S.prop.经济 <= 0 && S.term >= 2) {count("brokeWeek"); if (S.cnt.brokeWeek >= brokeNeed) {S.dead = "经济"; return gameOver();} }
 
       weeklySettle();
-      if (S.prop.压力 >= 100) {modProp("心态", GAME_CONFIG.difficulty === "story" ? -7 : -15); say(L("flow.stressBurst", GAME_CONFIG.difficulty === "story" ? 7 : 15), "bad");}
+      if (rules.hpEnd && S.prop.健康 < rules.hpEnd) {S.dead = "健康"; return gameOver();}
+      const burst = easy ? 7 : (dk === "hell" ? 20 : 15);
+      if (S.prop.压力 >= 100) {modProp("心态", -burst); say(L("flow.stressBurst", burst), "bad");}
       if (S.prop.健康 < 30) say(L("flow.healthWarn"), "bad");
       if (S.prop.心态 < 30) say(L("flow.mindWarn"), "bad");
       if (S.prop.压力 >= 80 && !Talent.have("不吃压力")) {modProp("效率", -3);}
@@ -692,7 +897,9 @@
         if (S.ach.includes(id)) continue;
         if (a.c(S)) {
           S.ach.push(id);
-          say(`🏆 达成成就【${a.n}】——${a.d}`, "ach");
+          const achTxt = `🏆 达成成就【${a.n}】——${a.d}`;
+          say(achTxt, "ach");
+          if (typeof fbUnlock === "function") fbUnlock(achTxt, "ach");
           toast(`🏆 成就:${a.n}`, true);
           if (a.unlock) gainTalent(a.unlock, "成就奖励·免费");
         }

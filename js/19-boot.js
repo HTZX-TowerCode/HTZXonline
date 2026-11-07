@@ -21,4 +21,7 @@
       renderSlots();
       if (typeof refreshSeason === "function") refreshSeason(true);
       if (typeof renderStartExtras === "function") renderStartExtras();
+
+      // 5. 主菜单消息栏：未读角标（顺手清掉已删消息的已读记录）
+      if (typeof renderMsgBadge === "function") renderMsgBadge();
     })();

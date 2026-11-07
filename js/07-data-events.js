@@ -47,7 +47,7 @@
         ]
       },
       {
-        id: "phone", w: 5, slot: "weekday", t: "手机诱惑",
+        id: "phone", w: 5, noTalent: ["自律机器", "道心如铁"], slot: "weekday", t: "手机诱惑",
         c: "自习课上，同桌悄悄把手机塞到你课本下面：「新皮肤，来一把？」\n教室后门的窗户上，班主任的脸随时可能出现。\n红塔中学对手机的态度，你入学第一天就知道了。", opts: [
           {t: "来一把", run: S => {
             count("game");
@@ -89,7 +89,7 @@
           ]
         },
         {
-          id: "dorm_phone_night", w: 5, t: "熄灯后",
+          id: "dorm_phone_night", w: 5, noTalent: ["自律机器", "道心如铁", "晨型人"], t: "熄灯后",
           slot: "weekday", dist: "uniform", minGap: 3,
           cond: S => hasFlag("phone_at_school"),
           c: "宿舍熄灯了。被窝里那块屏幕的光，是你今晚唯一的秘密。",
@@ -144,7 +144,7 @@
           ]
       },
       {
-        id: "nightstudy", w: 5, slot: "weekday", t: "深夜台灯",
+        id: "nightstudy", w: 5, noTalent: ["晨型人", "晨读书声"], slot: "weekday", t: "深夜台灯",
         c: "期中临近，舍友都睡了，你还有半本习题没刷完。\n台灯把你的影子投在墙上，很大，很安静。", opts: [
           {t: "挑灯夜读", run: S => {S.studyBuff += 0.2; S.buffWeeks = Math.max(S.buffWeeks, 2); count("night"); if (Talent.have("熬夜冠军")) {modProp("效率", 4); say("你早已习惯深夜。笔尖划过纸面的声音，是你最熟的音乐。", "good");} else if (Talent.have("体弱多病") || S.prop.健康 < 70) {modProp("健康", -10); say("身体吃不消，字开始重影。", "bad");} else {modProp("健康", -4); say("刷完题已是凌晨。窗外有虫子在叫。", "sys");} gainTalent("挑灯夜读", "深夜的灯光见证了你"); if ((S.cnt.night || 0) >= 6) gainTalent("熬夜冠军", "夜猫子大成");}},
           {t: "准时睡觉", run: S => {modProp("健康", 5); modProp("压力", -6); say("一夜好眠。明天的事，明天再说。", "good"); count("earlySleep");}},
@@ -159,7 +159,7 @@
         ]
       },
       {
-        id: "sports", w: 5, slot: "weekday", t: "体育课长跑测试",
+        id: "sports", w: 5, noTalent: ["体弱多病"], slot: "weekday", t: "体育课长跑测试",
         c: "1000 米测试。跑到一半，你肺像着了火，操场的风都是热的。", opts: [
           {t: "咬牙冲刺", run: S => {count("sport"); if (Talent.have("运动健将") || Talent.have("钢筋铁骨") || S.prop.健康 > 110) {modProp("健康", 8); modProp("心态", 8); count("sportWin"); say("全班第一！冲过终点那一刻，风忽然变凉了。", "good"); gainTalent("运动健将", "你天生属于跑道");} else if (S.prop.健康 > 80) {modProp("健康", 3); modProp("心态", 4); say("及格了。你扶着膝盖喘了很久。", "good");} else {modProp("健康", -6); say("你虚脱地倒在终点，被同学架去了医务室。", "bad");} }},
           {t: "匀速保命跑", run: S => {modProp("压力", -3); say("不快不慢，及格万岁。跑步的时候，脑子反而空了。", "");}},
@@ -175,7 +175,7 @@
         ]
       },
       {
-        id: "volunteer", w: 4, slot: "weekend", t: "社区志愿服务",
+        id: "volunteer", w: 4, noTalent: ["社恐", "高冷"], slot: "weekend", t: "社区志愿服务",
         c: "社区招募周末志愿者，去敬老院陪老人聊天。\n报名表在居委会的桌上，笔尖有点秃。", opts: [
           {t: "报名参加", run: S => {modProp("社交", 8); modProp("心态", 8); count("volunteer"); say("老人们拉着你的手讲了许多故事。有位爷爷说他年轻时也走过你现在的路。", "good");}},
           {t: "在家复习", run: S => {S.studyBuff += 0.1; S.buffWeeks = Math.max(S.buffWeeks, 2); say("你选择把时间留给课本。窗外的喧闹一点点暗下去。", "");}},
@@ -211,7 +211,7 @@
         ]
       },
       {
-        id: "class_duty", w: 3, slot: "weekday", t: "值日安排",
+        id: "class_duty", w: 3, needTalent: ["高冷", "社恐", "道心如铁"], slot: "weekday", t: "值日安排",
         c: "轮到你们组值日，但组员都跑了。扫帚靠在门后，教室空空荡荡。", opts: [
           {t: "一个人干完", run: S => {modProp("压力", 6); modProp("社交", 5); modProp("心态", 4); count("volunteer"); say("你默默打扫到天黑。第二天有人说了句谢谢。", "good");}},
           {t: "找老师告状", run: S => {modProp("社交", -4); modProp("心态", 2); say("组员被批评了，但你也得罪了人。", "");}},
@@ -242,7 +242,7 @@
         ]
       },
       {
-        id: "sick_day", w: 4, t: "生病请假",
+        id: "sick_day", w: 4, noTalent: ["钢筋铁骨", "天行健"], t: "生病请假",
         c: "你早上起来头痛欲裂，可能是感冒了。被子很暖，教室很远。", opts: [
           {t: "坚持去学校", run: S => {modProp("健康", -8); S.studyBuff += 0.1; S.buffWeeks = 1; say("你带病上课，学习效率却打了折扣。黑板上的字有点晃。", "bad");}},
           {t: "请假在家休息", run: S => {modProp("健康", 12); modProp("效率", -5); modProp("亲情", 3); say("休息一天，身体好多了。妈妈给你煮了粥。", "good");}},
@@ -303,7 +303,7 @@
       {
         id: "note_paper", w: 4, slot: ["weekday", "clubday"], t: "课桌里的纸条",
         c: "你翻开课本，掉出一张折成方块的纸条。\n字是同桌的：「这次月考加油，我看好你。」\n纸条背面画了一个歪歪扭扭的太阳。", opts: [
-          {t: "回一张给他", run: ["社交 +8", "心态 +7", "压力 -5", "计数 情书"],
+          {t: "回一张给他", run: ["社交 +8", "心态 +7", "压力 -5", "计数 纸条"],
             say: "你也折了一张塞回去。有些鼓励，是要还回去的。", cls: "good"},
           {t: "默默夹回书里", run: ["心态 +5", "悟性 +2"],
             say: "你把纸条夹回那一页。往后的日子，你翻到它就会慢一点。", cls: "good"},

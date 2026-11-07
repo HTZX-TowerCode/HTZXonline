@@ -39,7 +39,7 @@ const EFFECT_COUNT_MAP = {
   拒绝诱惑: "resist", 自律: "resist",
   熬夜: "night", 挑灯夜读: "night",
   副本: "dungeon", 假期副本: "dungeon",
-  情书: "love", 小吃: "food", 吃饭: "food",
+  纸条: "love", 情书: "love", 小吃: "food", 吃饭: "food",
   考试: "exam", 竞赛: "contestWin",
 };
 
@@ -49,12 +49,24 @@ function execCmd(cmd, S) {
   const s = cmd.trim();
   if (!s) return true;
 
+  /* v1.4 D 批（需求 15）：文具 / 图书联动指令。
+   * 事件里写「文具 丢失 书写」，笔就真的从袋里消失；
+   * 写「文具 借书 3周」，袋里就多一本有到期日的书。
+   * 全部交给 05i 的 stationeryCmd()，这里只做转发。 */
+  if (/^文具\s/.test(s) && typeof stationeryCmd === "function") return stationeryCmd(s, S);
+  /* v1.4 E 批（需求 17）：事件里写「小游戏 五子棋」就摆开棋盘 */
+  if (/^小游戏\s+五子棋$/.test(s) && typeof openGomoku === "function") {openGomoku(); return true;}
+
   // 概率前缀：概率 0.35 天赋 豪
   let m = s.match(/^概率\s*([\d.]+)\s*(.+)$/);
   if (m) {
     if (Math.random() >= parseFloat(m[1])) return true;
     return execCmd(m[2], S);
   }
+
+  /* v1.5 C 批：心事状态（内容层事件用，静态介绍里不出现相关字眼） */
+  if (/^心事\s+开始$/.test(s) && typeof romanceStart === "function") {romanceStart(); return true;}
+  if (/^心事\s+收心$/.test(s) && typeof romanceEnd === "function") {romanceEnd(); return true;}
 
   // 提示：提示 文字 [!good|!bad|!sys]
   m = s.match(/^提示\s+(.+?)\s*(!good|!bad|!sys|!talent)?$/);
@@ -79,7 +91,10 @@ function execCmd(cmd, S) {
     if (key && S.subj[key] !== undefined) {
       S.subj[key] = clamp(num(S.subj[key], 30) + parseFloat(m[2]), 0, SUBJ_CAP);
       recalcScore();
-      say(`【${key}】学力 ${m[2] > 0 ? "+" : ""}${m[2]}`, "good");
+      /* m[2] 是 "+18" 这种带符号的字符串，直接 "m[2] > 0" 会
+       * 判成 true 于是拼出 "++18"。改用 parseFloat 后判符号。 */
+      const dv = parseFloat(m[2]);
+      say(`【${key}】学力 ${dv >= 0 ? "+" : ""}${dv}`, "good");
     }
     return true;
   }

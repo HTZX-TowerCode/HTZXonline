@@ -254,7 +254,9 @@
           "--brand": "#1c6ea8", "--brand-deep": "#0d4470", "--brand-lite": "#4a9ed8",
           "--purple": "#8fd0f5", "--purple2": "#3f96cc",
           "--gold": "#9fe0d8", "--gold-soft": "#c8f2ec",
-          "--bg": "#123a52", "--panel": "#1a4c68", "--panel2": "#2e7296", "--line": "#5aa2c8",
+          /* v1.4 E：卡片底色略压暗一档，正文对比度 7.2 → 8.5；
+           * --bg 保持不动（背景仍比之前亮），卡片与背景反而更分得开。 */
+          "--bg": "#123a52", "--panel": "#164057", "--panel2": "#2a6585", "--line": "#5aa2c8",
           "--txt": "#f2fbff", "--dim": "#bcdcea",
           "--green": "#78e8d0", "--red": "#ff8098", "--blue": "#6fc0f5",
           "--glow": "63, 150, 204", "--glow2": "143, 208, 245", "--brand-rgb": "28, 110, 168",
@@ -362,7 +364,9 @@
           "--brand": "#3fa8a0", "--brand-deep": "#227068", "--brand-lite": "#74d8cc",
           "--purple": "#b0f0e8", "--purple2": "#5cc0b4",
           "--gold": "#f0e0a8", "--gold-soft": "#faf4d4",
-          "--bg": "#243f42", "--panel": "#305256", "--panel2": "#4c7a7e", "--line": "#84b8b4",
+          /* v1.4 E：卡片底色压暗一档（背景 #243f42 保持通透），
+           * 正文对比度 6.8 → 8.4；亮背景 + 沉卡片，层次反而更清楚。 */
+          "--bg": "#243f42", "--panel": "#224349", "--panel2": "#447376", "--line": "#84b8b4",
           "--txt": "#f4fffd", "--dim": "#c4e4e0",
           "--green": "#90e8c0", "--red": "#ff9a90", "--blue": "#7cd8e0",
           "--glow": "92, 192, 180", "--glow2": "176, 240, 232", "--brand-rgb": "63, 168, 160",
@@ -615,11 +619,6 @@
       return t;
     }
 
-    function nextTheme() {
-      const i = THEME_SKINS.findIndex(t => t.id === THEME_CUR);
-      const n = THEME_SKINS[(i + 1 + THEME_SKINS.length) % THEME_SKINS.length];
-      return setTheme(n.id);
-    }
 
     /* 背景切换：main / alt / end —— 沿用当前主题的图片 */
     function themeBg(season) {

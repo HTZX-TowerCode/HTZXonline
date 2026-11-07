@@ -14,6 +14,12 @@
   <link rel="stylesheet" href="css/03-modal.css">
   <link rel="stylesheet" href="css/04-theme.css">
   <link rel="stylesheet" href="css/05-mood.css">
+  <link rel="stylesheet" href="css/06-create.css">
+  <link rel="stylesheet" href="css/07-bag.css">
+  <link rel="stylesheet" href="css/08-minigames.css">
+  <link rel="stylesheet" href="css/09-audio.css">
+  <!-- v1.4 E 批：分层玻璃（最后加载，覆盖前面的平面卡片） -->
+  <link rel="stylesheet" href="css/10-layers.css">
 </head>
 
 <body>
@@ -27,7 +33,7 @@
     <div class="school-brand" id="schoolBrand"></div>
     <h1 data-i18n="app.title">中考人生模拟器</h1>
 
-    <div class="card premium-bg" style="position:relative;overflow:hidden">
+    <div class="card premium-bg" data-icon="💾" style="position:relative;overflow:hidden">
       <div class="ink-decoration"></div>
       <div class="tag-title" id="slotsLabel">存档槽位</div>
       <div class="slots" id="slotList"></div>
@@ -36,30 +42,41 @@
     <!-- ============================================================
          设置：主题色（点一下就换，立刻生效，并写进本地设置）
          ============================================================ -->
-    <div class="card" id="settingsCard">
+    <div class="card" id="settingsCard" data-icon="🎨">
       <div class="setrow">
         <span class="setlabel" id="themeLabel">主题色</span>
       </div>
       <div class="themelist" id="themeList"></div>
       <div style="color:var(--dim);font-size:.76rem;margin-top:6px" id="themeHint"></div>
+      <div class="setrow" style="margin-top:8px"><button class="btn" onclick="openAudioPanel()">🎵 背景音乐</button><button class="btn" onclick="openGomoku()">♟️ 摆一局五子棋</button></div>
     </div>
 
-    <div class="card" style="text-align:center">
+    <div class="card" style="text-align:center" data-icon="📚">
       <div class="tag-title" style="margin-bottom:8px" id="moreLabel">了解更多</div>
       <div class="docbtns">
         <button class="btn" id="btnGuide" onclick="openDocLive('guide')">📘 新手介绍</button>
         <button class="btn" id="btnChangelog" onclick="openDocLive('changelog')">🆕 更新日志</button>
         <button class="btn" id="btnCredits" onclick="openDocLive('credits')">🙏 鸣谢列表</button>
+        <button class="btn msg-btn" id="btnMessages" onclick="openMessages()" aria-label="消息">📬 消息<span class="msg-badge" id="msgBadge" style="display:none"></span></button>
       </div>
     </div>
 
-    <div class="card" style="text-align:center">
+    <div class="card" style="text-align:center" data-icon="📖">
       <div class="tag-title" style="margin-bottom:8px">
         <span id="aboutLabel">游戏说明</span>
         <button class="about-toggle" id="btnAboutToggle" type="button" aria-expanded="true">收起</button>
       </div>
       <p style="color:var(--dim);font-size:.9rem;line-height:2" id="aboutBody"></p>
     </div>
+  </div>
+
+  <!-- ============================================================
+       v1.4 创角独立页（需求 1）
+       点「新开存档」后从主菜单切到这一页，不再是弹窗。
+       内容全部由 js/18b-create.js 渲染，这里只放骨架。
+       ============================================================ -->
+  <div id="createScreen" class="screen hidden">
+    <div id="createBody"></div>
   </div>
 
   <div id="gameScreen" class="screen hidden">
@@ -70,12 +87,18 @@
         <span class="dots" id="evDots"></span>
       </div>
       <div class="timepill" id="timePill">📅 <span id="hudTime">—</span></div>
+      <div class="clubpill" id="modePill">真实 · 困难</div>
+      <!-- v1.4 E 批：顶部状态栏常驻关键资源（钱 / 文具袋件数） -->
+      <div class="respill" id="resPill">💰 —　🎒 —</div>
       <div class="clubpill hidden" id="clubPill">🎪 <span id="hudClub">—</span></div>
       <div class="topbtns">
+        <button class="btn" id="btnBag" onclick="openBag()">🎒 文具袋</button>
         <button class="btn" id="btnShop" onclick="openShop()">🏪 小卖铺</button>
         <button class="btn" id="btnTalentBook" onclick="openTalentBook()">📖 天赋图鉴</button>
         <button class="btn" id="btnAch" onclick="openAch()">🏆 成就</button>
         <button class="btn" id="btnTheme" onclick="openThemePicker()">🎨 主题</button>
+        <button class="btn" id="btnGomoku" onclick="openGomoku()">♟️ 棋摊</button>
+        <button class="btn" id="btnAudio" onclick="openAudioPanel()">🎵 音乐</button>
         <button class="btn" id="btnSave" onclick="saveGame(true)">💾 保存</button>
         <button class="btn" id="btnHome" onclick="toStart()">🏠 主菜单</button>
       </div>
@@ -83,17 +106,19 @@
     <div id="hud">
       <!-- 左栏：状态。天赋与道具、各科与成绩各自合并进一张卡，少滚一半屏幕 -->
       <div class="sidecol">
-        <div class="card" id="statPanel"></div>
-        <div class="card">
+        <div class="card" id="statPanel" data-icon="📊"></div>
+        <!-- v1.4：仅「游戏」真实度显示，展示各科当前学力数值 -->
+        <div class="card hidden" id="subjMini" data-icon="📐"></div>
+        <div class="card" data-icon="🏅">
           <div class="tag-title"><span id="talentLabel">天赋</span>(<span id="talentCount">0</span>) <span
               style="color:var(--dim);font-size:.7rem" id="talentHint">点击看详情</span></div>
           <div id="talentPanel" style="margin-top:4px;line-height:1.7"></div>
-          <div class="tag-title" style="margin-top:6px"><span id="itemLabel">道具</span>(<span id="itemCount">0</span>)</div>
+          <div class="tag-title" style="margin-top:6px"><span id="itemLabel">文具袋</span>(<span id="itemCount">0</span>)</div>
           <div id="itemPanel" style="margin-top:4px;line-height:1.7"></div>
         </div>
         <!-- 学科分数板块已移除：各科只在考试事件里出现。
              综合学力 / 最近考试 / 年级排名三行留在下面这张卡里。 -->
-        <div class="card">
+        <div class="card" data-icon="📈">
           <div class="tag-title" id="scoreLabel">成绩</div>
           <div style="margin-top:4px;line-height:1.7;font-size:.85rem">
             <span id="lastExamLabel">最近考试</span>:<b id="lastExam" style="color:var(--blue)">—</b><br>
@@ -103,8 +128,8 @@
       </div>
       <!-- 右栏：日志 + 本周行动 -->
       <div class="maincol">
-        <div class="log" id="log"></div>
-        <div class="opts" id="actionPanel"></div>
+        <div class="log" id="log" data-icon="📜"></div>
+        <div class="opts" id="actionPanel" data-icon="🎯"></div>
       </div>
     </div>
   </div>
@@ -128,6 +153,8 @@
   <script src="js/00-docs.js"></script>
   <!-- 文档实时更新：改完 docs/*.md 立刻能在游戏里看到 -->
   <script src="js/00b-docs-live.js"></script>
+  <!-- 消息栏：开发者与玩家对话。要发新消息只改这个文件的 MESSAGES 数组 -->
+  <script src="js/00c-messages.js"></script>
   <script src="js/01-utils.js"></script>
   <!-- 文案集中层：界面文案都走 L("key")，方便将来接回双语 -->
   <script src="js/01b-i18n.js"></script>
@@ -156,10 +183,26 @@
   <script src="js/05c-data-sport.js"></script>
   <!-- 做题题库与出题逻辑 -->
   <script src="js/05d-data-quiz.js"></script>
+  <!-- v1.5.2：题库追加表（须在 05d 之后，会并入 QUIZ_BANK） -->
+  <script src="js/05d2-data-quiz-more.js"></script>
   <!-- 寒暑假：学期之间的独立阶段，不占周数 -->
   <script src="js/05e-data-vacation.js"></script>
   <script src="js/05f-data-travel.js"></script>
   <script src="js/05b-data-clubs.js"></script>
+  <!-- v1.4 C 批：亲情事件 -->
+  <script src="js/05g-data-family.js"></script>
+  <!-- v1.4 C 批第 2 小批：周末时间表 -->
+  <script src="js/05h-weekend.js"></script>
+  <!-- v1.4 D 批：文具袋 / 图书（须在 07 事件表之后、17-ui 之前） -->
+  <script src="js/05i-data-stationery.js"></script>
+  <script src="js/05j-data-stationery-events.js"></script>
+  <!-- v1.4 E 批：小游戏触发事件 -->
+  <script src="js/05k-data-minigame-events.js"></script>
+
+  <!-- v1.5 C 批：社团扩充 52 条 / 随机池 30 条 + 长链 5 条主线 / 心事状态 -->
+  <script src="js/05l-data-clubs-extra.js"></script>
+  <script src="js/05m-data-events-extra.js"></script>
+  <script src="js/05o-data-romance.js"></script>
   <!-- 固定事件与假期副本 -->
   <script src="js/09-data-fixed.js"></script>
   <!-- 成就表 -->
@@ -168,6 +211,11 @@
   <script src="js/11-data-endings.js"></script>
   <!-- 破茧 · 负面天赋消除表 -->
   <script src="js/12-data-cures.js"></script>
+  <!-- 开局自选天赋 / 天赋扩充 / 蜕变（要在 TALENT_DECAY 之后加载） -->
+  <script src="js/03d-talent-pick.js"></script>
+  <!-- v1.4 C 批：体力池 + 事事有回应 -->
+  <script src="js/03e-stamina.js"></script>
+  <script src="js/03f-feedback.js"></script>
   <!-- 中文指令解释器（让不会编程也能写内容） -->
   <script src="js/13-engine-effects.js"></script>
   <!-- 天赋管理引擎 -->
@@ -178,9 +226,15 @@
   <script src="js/16-flow.js"></script>
   <!-- 界面与弹窗 -->
   <script src="js/17-ui.js"></script>
-  <!-- 本地存档 -->
+  <!-- 本地存档（newGameAt 会转交给下面这一页） -->
   <script src="js/18-save.js"></script>
+  <!-- 创角独立页：姓名 / 真实度 / 难度 / 起点 / 生地成绩 / 自选天赋 -->
+  <script src="js/18b-create.js"></script>
   <!-- 启动入口 -->
+  <!-- v1.4 E 批：内置小游戏 / 背景音乐（须在 17-ui 之后、boot 之前） -->
+  <script src="js/20-minigames.js"></script>
+  <script src="js/21-audio.js"></script>
+  <script src="js/22-ui-layers.js"></script>
   <script src="js/19-boot.js"></script>
 </body>
 

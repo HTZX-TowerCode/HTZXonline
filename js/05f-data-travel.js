@@ -279,7 +279,13 @@
       const opts = [{
         t: L("travel.confirm"), fn: () => {
           if (chosen.length < MIN_PICK) return;
-          S.prop.经济 = Math.round(money - spent);
+          /* v1.5 A 批：统一走 spendMoney，钱不够一分不扣、也不会欠钱。
+           * 地图打开期间属性可能被别的结算改过，用实时余额再判一次。 */
+          if (typeof spendMoney === "function") {
+            if (!spendMoney(spent)) return;
+          } else {
+            S.prop.经济 = Math.max(0, Math.round(num(S.prop.经济, 0) - spent));
+          }
           if (typeof renderHUD === "function") renderHUD();
           say(L("travel.setoff", route.name), "sys");
           runTravelStops(chosen.slice(), done);

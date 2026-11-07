@@ -1,0 +1,21 @@
+/* ==================================================================
+ * v1.4 E 批 · 背景音乐面板
+ * ================================================================== */
+.audio-panel {display:flex;flex-direction:column;gap:9px;font-size:.86rem}
+.audio-state {padding:6px 10px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid var(--line);line-height:1.6}
+.audio-controls {display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.audio-vol {display:inline-flex;align-items:center;gap:7px;color:var(--dim);font-size:.82rem}
+.audio-vol input[type="range"] {width:min(180px,42vw);accent-color:var(--purple2);cursor:pointer}
+.audio-vol b {color:var(--txt);min-width:38px}
+.audio-tracks {display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:7px;max-height:34vh;overflow-y:auto}
+.audio-track {
+  display:flex;flex-direction:column;gap:2px;text-align:left;padding:7px 9px;
+  border-radius:9px;border:1px solid var(--line);background:rgba(255,255,255,.035);
+  color:var(--txt);cursor:pointer;transition:border-color .2s,background .2s
+}
+.audio-track:hover {border-color:var(--purple);background:rgba(var(--glow),.12)}
+.audio-track.on {border-color:var(--gold);background:linear-gradient(135deg,rgba(var(--glow),.22),rgba(255,255,255,.04))}
+.audio-track b {font-size:.86rem}
+.audio-track small {color:var(--dim);font-size:.72rem}
+.audio-import {display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:2px}
+.audio-import .btn {margin:0}
