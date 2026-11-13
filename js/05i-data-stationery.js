@@ -317,6 +317,7 @@
        *  · 书仍做同 def 去重（保留进度最高的、已读完优先）
        * 旧档里曾被旧规则截断丢掉的东西救不回来，但至少从这里起不再丢。 */
       const seenBook = {}, occupying = [], free = [];
+      const beforeLen = b.items.length;
       b.items.forEach(it => {
         if (!it || !anyDef(it.def) || !Number.isFinite(it.dur) || it.dur <= 0) return;
         if (bagIsBook(it)) {
@@ -330,6 +331,10 @@
         else free.push(it);
       });
       b.items = occupying.slice(0, b.cap).concat(free);
+      /* v1.5.5（坑 83）：bagEnsure 会静默丢掉 dur<=0 的坏笔、按 cap 截断、
+       * 或合并重复的书。这也是「文具状态变了」，界面必须跟着刷 ——
+       * 否则 bagWear 把笔磨到 0 后，bagRemove 再找不到它，刷新就漏了。 */
+      if (b.items.length !== beforeLen && typeof bagSyncUI === "function") bagSyncUI();
       /* ★ 坑 63：只读档不补全的话，旧存档 / 事件手工塞进来的物品可能
        * 缺 durMax / progMax，条会被算成 0% —— 看起来就是「条空了」。
        * 这里按 def 兜底补齐，且只在字段非法时动，不覆盖正常数值。 */
@@ -380,6 +385,39 @@
       bagAdd("eraser", {silent: true});
       if (rnd(3) === 0) bagAdd("bookmark", {silent: true});
       if (rnd(4) === 0) bagAdd(rnd(2) ? "ruler_set" : "rope", {silent: true});
+    }
+
+    /* ==================================================================
+     * v1.5.5 · 文具状态变化 → 立刻刷新界面（坑 83）
+     * ------------------------------------------------------------------
+     * 以前只有 bagBuy() 调了 renderHUD()，而「没有能写字的笔」那条黄色
+     * 横幅、灰掉的学习 / 做题 / 读书按钮，是 16-flow.js 的
+     * paintActionPanel() 画出来的。renderHUD() 只管顶栏 —— 所以买完笔、
+     * 笔报废、事件送笔之后，背景面板还是旧那份 DOM，玩家看到的是
+     * 「明明买了，却还说没有用具」。
+     *
+     * ★ 还有一条暗路：bagEnsure() 会静默丢掉 dur<=0 的坏笔 / 按 cap 截断。
+     *   bagWear 把笔磨到 0 后，bagBreakItem → bagRemove 开头的 bagEnsure
+     *   已把它清走，findIndex 返回 -1 就提前 return，刷新整个漏掉 ——
+     *   所以 bagEnsure 里也要挂，bagRemove 的 i<0 分支同样要挂。
+     *
+     * 统一挂在所有进货 / 移除的成功出口，用微任务合并同一调用栈里的多次
+     * 变更（一次事件可能同时给 3 件、报废 1 件），只重绘一次；微任务也
+     * 保证重绘发生在当前按钮回调结束之后，不干扰正开着的弹窗。
+     * ================================================================== */
+    let BAG_SYNC_QUEUED = false;
+    function bagSyncUI() {
+      if (BAG_SYNC_QUEUED) return;
+      BAG_SYNC_QUEUED = true;
+      const run = () => {
+        BAG_SYNC_QUEUED = false;
+        try {
+          if (typeof refreshActionPanel === "function") refreshActionPanel();
+          if (typeof renderHUD === "function") renderHUD();
+        } catch (e) { /* 界面刷新失败不影响已经改好的文具状态 */ }
+      };
+      if (typeof queueMicrotask === "function") queueMicrotask(run);
+      else Promise.resolve().then(run);
     }
 
     /* 加一件文具。返回 true / false（袋满） */
@@ -442,15 +480,19 @@
       }
       b.items.push(it);
       if (!o.silent && typeof say === "function") say(`🎒 文具袋里多了 ${d.n}${it.borrowed ? `（借的，第 ${it.dueWeek} 周要还）` : ""}。`, "good");
+      bagSyncUI();
       return true;
     }
 
     function bagRemove(uid, silent) {
       bagEnsure();
       const b = S.bag, i = b.items.findIndex(x => x.uid === uid);
-      if (i < 0) return null;
+      /* bagEnsure() 可能已经把这件（比如刚报废的 dur=0 坏笔）清掉了，
+       * 此时 items 确实变过，仍要刷新界面，不能静默 return。 */
+      if (i < 0) {bagSyncUI(); return null;}
       const it = b.items.splice(i, 1)[0];
       if (!silent && typeof say === "function") say(`🎒 ${it.n} 不在袋里了。`, "sys");
+      bagSyncUI();
       return it;
     }
 
@@ -488,7 +530,7 @@
       if (typeof toast === "function") toast("✏️ 没有能写字的笔了，先去小卖部买一支");
       if (typeof say === "function") say("✏️ " + msg, "bad");
       if (typeof renderHUD === "function") renderHUD();
-      if (typeof offerActions === "function") offerActions();
+      if (typeof refreshActionPanel === "function") refreshActionPanel();
       return true;
     }
 
@@ -529,6 +571,7 @@
       const it = pool[rnd(pool.length)];
       it.dur = Math.max(0, num(it.dur, 0) - num(n, 1));
       if (it.dur <= 0) bagBreakItem(it, why);
+      bagSyncUI();
     }
 
     /* 文具袋自身磨损 → 散落 */
@@ -727,7 +770,8 @@
       if (ok && typeof modProp === "function") modProp("经济", -price);
       if (ok) {
         if (typeof say === "function") say(`🛒 花了 ${price} 买了 ${d.n}。`, "good");
-        if (typeof renderHUD === "function") renderHUD();
+        if (typeof renderHUD === "function") renderHUD();   // 顶栏钱数立刻变
+        bagSyncUI();                                      // 背景行动面板跟着解锁
       }
       return ok;
     }

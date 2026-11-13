@@ -148,6 +148,18 @@
       // 周三社团课：行动选项换成社团专属的
       if (S.slot === "clubday") {offerClubActions(); return;}
 
+      paintActionPanel();
+    }
+
+    /* ==================================================================
+     * v1.5.5 · 行动面板「纯渲染」层（坑 83）
+     * ------------------------------------------------------------------
+     * 从 offerActions() 抽出来，是为了让「买完笔 / 笔报废 / 事件送笔」
+     * 也能安全重绘面板。直接调 offerActions() 不行：它开头的
+     * needClubGrab() 会在开学 3~5 周弹出抢社团窗口，把购买流程打断。
+     * 本函数只读 S 画 DOM，不写存档、不判流程、不碰弹窗。
+     * ================================================================== */
+    function paintActionPanel() {
       const acts = [
         {k: "study", t: L("act.study")},
         {k: "quiz", t: L("act.quiz")},
@@ -226,6 +238,26 @@
       box.appendChild(endBtn);
       // 道具不在这里重复列出 —— 用道具请点顶部「🎒 道具」按钮
       renderHUD();
+    }
+
+    /* v1.5.5 · 文具状态变了，刷新背景里的行动面板。
+     * 只在「游戏屏可见 + 面板已经画过」时生效：读档 / 主菜单不碰。
+     * 不检查 popupBusy —— 买东西时弹窗正开着，恰恰就要这时候刷。
+     * clubday 走社团课面板，普通时段走 paintActionPanel()；两者都不碰
+     * needClubGrab / 固定事件这些流程判断，所以不会打断任何东西。 */
+    function refreshActionPanel() {
+      if (typeof S === "undefined" || !S || S.over) return;
+      const gs = document.getElementById("gameScreen");
+      if (!gs || gs.classList.contains("hidden")) return;
+      const panel = document.getElementById("actionPanel");
+      if (!panel || !panel.querySelector(".actgrid")) return;
+      try {
+        if (S.slot === "clubday") {
+          if (typeof offerClubActions === "function") offerClubActions();
+        } else {
+          paintActionPanel();
+        }
+      } catch (e) { /* 重绘失败不影响已经改好的文具状态 */ }
     }
 
     /* 周三社团课的行动选项

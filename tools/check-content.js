@@ -728,6 +728,47 @@ function checkGomokuStandalone() {
 }
 
 /* ==================================================================
+ * v1.5.5 守卫：文具状态一变，界面必须跟着刷（坑 83）
+ * ------------------------------------------------------------------
+ * 症状：买完笔，背景行动面板还挂着「没有能写字的笔」+ 按钮全灰。
+ * 根因：bagBuy 只调 renderHUD()（管顶栏），横幅与按钮是
+ *       16-flow.js 的 paintActionPanel() 画的。
+ * 暗路：bagEnsure() 会静默丢掉 dur<=0 的坏笔，导致 bagRemove 的
+ *       findIndex 返回 -1 提前 return，刷新整个漏掉。
+ * ================================================================== */
+function checkBagUIRefresh() {
+  const flow = fs.readFileSync(path.join(ROOT, "js", "16-flow.js"), "utf8");
+  const bag  = fs.readFileSync(path.join(ROOT, "js", "05i-data-stationery.js"), "utf8");
+  const bad = [];
+  if (!/function paintActionPanel\(\)/.test(flow))
+    bad.push("16-flow.js 缺 paintActionPanel()：刷新面板会误触发 needClubGrab 抢社团窗口");
+  if (!/function refreshActionPanel\(\)/.test(flow))
+    bad.push("16-flow.js 缺 refreshActionPanel()：文具状态变了没人重绘行动面板");
+  const refresh = flow.slice(flow.indexOf("function refreshActionPanel("), flow.indexOf("/* 周三社团课的行动选项"));
+  if (!/gameScreen/.test(refresh) || !/\.actgrid/.test(refresh))
+    bad.push("refreshActionPanel 没检查「游戏屏可见 + 面板已画过」，读档 / 主菜单会误刷");
+  if (!/offerClubActions/.test(refresh) || !/paintActionPanel/.test(refresh))
+    bad.push("refreshActionPanel 没按 slot 分流，clubday 会被画成普通面板");
+  if (!/needClubGrab/.test(flow.slice(flow.indexOf("function offerActions("), flow.indexOf("function paintActionPanel("))))
+    bad.push("offerActions 的流程判断被挪走了，抢社团窗口会失效");
+  if (!/function bagSyncUI\(\)/.test(bag))
+    bad.push("05i 缺 bagSyncUI() 统一刷新");
+  if (!/queueMicrotask|Promise\.resolve/.test(bag))
+    bad.push("bagSyncUI 没用微任务合并，一次事件给多件文具会重绘多次 / 打断弹窗");
+  const points = [
+    ["bagAdd 成功出口", /b\.items\.push\(it\);[\s\S]{0,220}bagSyncUI\(\);/],
+    ["bagRemove 成功出口", /b\.items\.splice\(i, 1\)\[0\];[\s\S]{0,180}bagSyncUI\(\);/],
+    ["bagRemove 的 i<0 分支", /if \(i < 0\) \{bagSyncUI\(\); return null;\}/],
+    ["bagEnsure 丢弃/截断后", /b\.items\.length !== beforeLen[\s\S]{0,120}bagSyncUI\(\)/],
+    ["bagWear 磨损后", /if \(it\.dur <= 0\) bagBreakItem\(it, why\);\s*bagSyncUI\(\);/],
+    ["bagBuy 购买后", /renderHUD\(\);\s*\/\/ 顶栏钱数立刻变[\s\S]{0,80}bagSyncUI\(\);/]
+  ];
+  points.forEach(([name, re]) => {if (!re.test(bag)) bad.push("缺刷新挂点：" + name);});
+  errors.push(...bad);
+  if (!bad.length) oks.push("文具刷新：纯渲染层 + 6 个状态变更出口 + 微任务合并 ✅");
+}
+
+/* ==================================================================
  * v1.5.4 守卫：五子棋棋盘在任何屏幕上都是正方形（坑 82）
  * ------------------------------------------------------------------
  * 历史上两次让它变扁 / 变小：
@@ -1093,6 +1134,7 @@ checkSaveFramework();
 checkRenderPerf();
 checkGomokuStandalone();
 checkGomokuShape();
+checkBagUIRefresh();
 checkStationeryGate();
 checkCssColorVars();
 

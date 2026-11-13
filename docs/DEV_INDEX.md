@@ -207,7 +207,8 @@ node tools/make-single.js          → game.html 重新生成
 
 **v1.5.1**：`check-content.js` 新增 `checkBookRules()`（一种书一本 / 复读分流 / 先放货再扣钱）。
 **v1.5.3**：容量口径收紧为「只有 `write` / `eraser` 占格子」
-**v1.5.4**：`check-content.js` 新增 `checkGomokuShape()`（棋盘宽高同源 / 禁 `max-height` / 禁在 `gmkFit` 里用 `getBoundingClientRect()` / 矮屏下限）。见 `HANDOVER.md` 坑 82。，新增 `bagOccupies()` / `bagHasDurable()`；小卖铺改 `SHOP_GROUPS` 全量分类陈列；`checkBookRules()` 增加图标重复、耐用品唯一、周结算去重、分组完整性守卫。容量判定统一走 `bagCount()`。
+**v1.5.4**：`check-content.js` 新增 `checkGomokuShape()`
+**v1.5.5**：`check-content.js` 新增 `checkBagUIRefresh()`（文具状态变化必须刷新行动面板；`offerActions` 已拆出纯渲染层 `paintActionPanel()`，别在刷新里直接调它）。见 `HANDOVER.md` 坑 83。（棋盘宽高同源 / 禁 `max-height` / 禁在 `gmkFit` 里用 `getBoundingClientRect()` / 矮屏下限）。见 `HANDOVER.md` 坑 82。，新增 `bagOccupies()` / `bagHasDurable()`；小卖铺改 `SHOP_GROUPS` 全量分类陈列；`checkBookRules()` 增加图标重复、耐用品唯一、周结算去重、分组完整性守卫。容量判定统一走 `bagCount()`。
 
 **v1.5.2 题库**：新增 `js/05d2-data-quiz-more.js`（`QUIZ_MORE`，228 题），须排在
 `js/05d-data-quiz.js` 之后加载 —— 它把题 push 进已有的 `QUIZ_BANK`。
